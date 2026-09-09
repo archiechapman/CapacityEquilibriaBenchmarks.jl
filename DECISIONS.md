@@ -54,25 +54,40 @@ Checked by `check_decision_log.py`. Ids are stable and never reused.
   that is a novel result rather than a reproduction — either would need its own decision rather than
   inheriting this one.
 
-## D-0003 — `Manifest.toml` is committed and the CCOpt.jl commit SHA is pinned.
+## D-0003 — `Manifest.toml` is committed; CCOpt.jl is bounded by version, not pinned by SHA.
 
 - date: 2026-09-09
 - status: active
 - question: Does this repository pin its dependency versions, given that the engine it depends on
   deliberately does not?
 - options: no manifest, resolving fresh like a library; a committed manifest pinning everything; a committed
-  manifest with CCOpt.jl alone pinned by SHA
-- decision: Commit the manifest, and restate the CCOpt.jl SHA in the README so it is visible without opening
-  a lockfile.
-- evidence: judgement, no measurement — this repository is a reproducible study rather than a library, and
-  CCOpt.jl is pre-1.0 with no tagged releases, so an unpinned dependency means a result that cannot be
-  reproduced next month. `CapacityEquilibria.jl` makes the opposite choice for the opposite reason
-  (`CapacityEquilibria.jl` D-0001), and the two are not in conflict.
+  manifest with CCOpt.jl alone pinned by SHA; a committed manifest plus an ordinary compat bound, once
+  CCOpt.jl turned out to be registered
+- decision: Commit the manifest, and bound CCOpt.jl at `"0.1"` in `Project.toml`. No SHA pin: CCOpt.jl is
+  registered at v0.1.0, so the committed manifest already records an exact resolved version and its
+  `git-tree-sha1`, which is the reproducibility the plan wanted a commit pin for.
+- evidence: `CapacityEquilibria.jl` F-0002 — CCOpt.jl is in the General registry with one tagged version,
+  which the plan (and this entry, as first written) assumed was not the case. The manifest half still
+  stands on judgement: this repository is a reproducible study rather than a library, so an unpinned
+  dependency means a result that cannot be reproduced next month. `CapacityEquilibria.jl` D-0001 makes the
+  opposite choice for the opposite reason, and the two are not in conflict.
 - cost_of_change: Cheap either way, but the cost of not having done it is only discovered once a result
   fails to reproduce, at which point the information needed to explain why is already gone.
-- revisit_if: CCOpt.jl tags a release, at which point a version bound replaces the SHA and the README note
-  becomes a compat entry instead.
+- revisit_if: CCOpt.jl tags a v0.2 with API changes, at which point the bound is widened deliberately and
+  the results re-run across the change rather than the bound being relaxed to whatever resolves; or this
+  repository stops being able to resolve `CapacityEquilibria.jl` by relative path, which is how the engine
+  is reached until it is registered.
 
-The pin gets re-synced against a newer CCOpt.jl commit deliberately and once, per the plan's own risk
-section, rather than tracked continuously. A re-sync is a commit of its own with the old and new SHAs named
-in its message, so that a change in results across the re-sync is attributable.
+The version gets moved deliberately and once, per the plan's own risk section, rather than tracked
+continuously. A move is a commit of its own naming the old and new versions, so that a change in results
+across it is attributable.
+
+The entry as first written called for a commit-SHA pin, because the plan said CCOpt.jl had no tagged
+releases. It has one. The decision is not superseded — the intent, an exactly reproducible dependency, is
+unchanged and is better served by the registry than by a SHA — but the mechanism named here is not the one
+the plan specified, and the difference is recorded rather than quietly implemented.
+
+The engine is currently reached through a `[sources]` relative path, so this manifest records
+`path = "../CapacityEquilibria.jl"` and assumes the two repositories are cloned side by side. That is
+adequate while both are private and co-developed and is the weakest link in this entry's reproducibility
+claim; it is named in `revisit_if` above rather than left to be discovered.

@@ -18,6 +18,28 @@ Scaffold a Julia project with a conventional layout: `src/` for model code, `tes
 
 Set up dependencies: JuMP with native `MOI.Complements` support (not `Complementarity.jl`) for the PATH-solved models, since native MOI syntax is the better-maintained path and, more importantly, exercises the same complementarity-set machinery that a CCOpt.jl integration would eventually need to interoperate with, rather than a separate, older interface. Add `PATHSolver.jl` and register PATH's free academic license before writing any model code, not when a size limit is first hit. Add `CCOpt.jl` and `NLPModels.jl` as dependencies; since CCOpt.jl has no tagged releases at the time of writing, pin it to a specific commit SHA in the project's `Manifest.toml` rather than tracking `main`, and note that SHA explicitly in the README so the replication is reproducible even as CCOpt.jl's API continues to move. Confirm before proceeding that a trivial complementarity problem solves correctly through both PATH and CCOpt.jl in this environment; this is a five-minute smoke test that will save time later disentangling environment problems from model problems.
 
+## Corrections found while executing Phase 0
+
+*The plan above was written before any of it was run. These are the places it turned out to be wrong, kept
+here rather than edited into it so that what was expected and what was found stay distinguishable. Each cites
+the ledger entry that checked it.*
+
+| The plan says | Phase 0 found |
+|---|---|
+| CCOpt.jl "has no tagged releases at the time of writing"; pin it to a commit SHA | It is in the General registry at v0.1.0. A compat bound plus the committed manifest gives exact reproducibility without a SHA (`CapacityEquilibria.jl` F-0002; D-0003 updated) |
+| The upstream repository is `MadNLP/CCOpt.jl` | It is `madsuite-org/CCOpt.jl`. `MPCCModels.jl` is also `madsuite-org`, though CCOpt's own README still points at `MadNLP/MPCCModels.jl` (F-0002) |
+| Declare pairs with `CCOpt.MPCCModelVarVar(nlp, ind_x1, ind_x2)` | No such name. It is `MPCCModels.MPCCModel(nlp, ind_x1, ind_x2)`, from a separate package, solved with `CCOpt.solve_homotopy!` (F-0003) |
+| Build an `NLPModel` by hand as the CCOpt-side formulation | CCOpt has a JuMP path the plan does not mention — `MathOptComplements` bridges plus `CCOpt.Optimizer` — so one JuMP model can serve both solvers (F-0003) |
+| Solve with both `RelaxationSolver` and `PenaltySolver` | Only the relaxation method is reachable through JuMP; CCOpt's MOI layer constructs it unconditionally. The penalty method needs the direct `MPCCModel` route (F-0004) |
+| — (not mentioned) | The three-repository split means Phase 0 spans two repositories: the engine holds the plumbing and the smoke test, this one holds the data, the models and the upstream emitters |
+
+The fourth row is the one that changes work rather than wording. The plan treats the CCOpt.jl formulation as
+a hand-made translation of the PATH one and asks that they be kept identical by sharing `data/`. The JuMP
+path makes them the same model, not two models with the same inputs, which removes the drift risk the plan
+was managing rather than mitigating it. The fifth row then partly gives it back: the penalty run cannot use
+that path, so Phase 2 has one formulation reached two ways and a second reached one way, and those two need
+checking against each other rather than being assumed equivalent.
+
 ## Phase 1 — Open-loop replication in PATH (ground truth)
 
 Transcribe the paper's data directly from its tables: the load-duration-curve blocks (Murphy and Smeers use discrete demand blocks rather than chronological hours, which keeps this small), the firms and their technology portfolios, capacity costs, variable costs, and whatever demand-elasticity or willingness-to-pay parameters the price-taking and Cournot formulations require. Put every one of these numbers in `data/`, and annotate each with the specific table and page it came from. This transcription is the single point of highest risk in the whole plan, since every later comparison depends on it being right; treat any parameter the paper states ambiguously as a flagged open question rather than a silent guess.

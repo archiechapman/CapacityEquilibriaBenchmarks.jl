@@ -1,0 +1,46 @@
+# Instance A for Murphy, F. H. and Smeers, Y., "Generation Capacity Expansion in Imperfectly
+# Competitive Restructured Electricity Markets" -- the working paper dated May 2002 (69 pp.),
+# which is the edition in ../literature/. Page numbers below are the paper's printed page
+# numbers (PDF page = printed page + 2). See data/PROVENANCE.md.
+#
+# THIS IS A CONSTRUCTED INSTANCE, NOT A TRANSCRIPTION. The paper publishes no numerical
+# example and no parameter table (FINDINGS.md F-0001), so there is nothing to transcribe.
+# What the paper does state is the model's structure and the inequalities its parameters
+# must satisfy; those ARE transcribed, in [assumptions] below with their pages, and every
+# value in [instance] was chosen here subject to them. The values were chosen small and
+# rational so the equilibria can be derived by hand (docs/ms2002_instance_a_derivation.md).
+# The published version (Operations Research 53(4), 2005) has no numerical example either
+# (FINDINGS.md F-0002), so there is no transcription this instance stands in for.
+
+[source]
+paper = "Murphy, F. H. and Smeers, Y., Generation Capacity Expansion in Imperfectly Competitive Restructured Electricity Markets"
+edition = "working paper, May 2002, 69 pp.; pre-publication version of Operations Research 53(4) 646-661, 2005"
+kind = "constructed"
+
+[assumptions]
+# Transcribed from the paper. Checked by `check_assumptions` before any model is built.
+segments_unit_width = "segments s = 1..S are one unit wide; s = 1 is the peak segment, s = S the base segment (p.11, section 2)"
+demand = "p^s = alpha^s - beta * q^s for s = 1..S, beta > 0, same slope in every segment (p.12, section 2)"
+demand_ordering = "alpha^1 > alpha^2 > ... > alpha^S: the inverse demand curves do not cross (p.12, section 2)"
+peaker_cheaper_on_peak = "K_p + nu_p < K_b + nu_b (p.11, section 2)"
+base_cheaper_on_base = "K_b + S*nu_b < K_p + S*nu_p (p.11, section 2)"
+specialisation = "player p builds and operates only peak plants; player b only base plants (p.12, section 2)"
+
+[instance]
+name = "A"
+S = 3                        # number of time segments (p.11)
+beta = 1.0                   # inverse-demand slope, beta > 0 (p.12)
+alpha = [20.0, 15.0, 10.0]   # inverse-demand intercepts, strictly decreasing (p.12)
+
+[instance.peak]              # player p: peaker, e.g. gas turbine (p.11)
+K = 2.0                      # annual investment cost per unit of capacity (p.11)
+nu = 3.0                     # operating cost per unit of output (p.11)
+
+[instance.base]              # player b: base-load plant, e.g. CCGT (p.11)
+K = 7.0
+nu = 1.0
+
+# Implied by the values above and the "Production Efficiency" property on p.14: peakers are
+# cost-effective for segments s = 1..S_p where K_p + S_p nu_p < K_b + S_p nu_b and
+# K_p + (S_p+1) nu_p > K_b + (S_p+1) nu_b. Here 2 + 3*2 = 8 < 7 + 2 = 9 and 2 + 9 = 11 > 10,
+# so S_p = 2. The instance was chosen to avoid the tie K_p + s nu_p = K_b + s nu_b at any s.

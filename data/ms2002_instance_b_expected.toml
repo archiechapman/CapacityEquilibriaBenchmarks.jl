@@ -1,0 +1,33 @@
+# Expected equilibria of instance B (data/ms2002_instance_b.toml). NOT from the paper:
+# neither edition publishes numbers (FINDINGS.md F-0001, F-0002). Derived in
+# docs/ms2002_instance_b_derivation.md by applying the paper's equilibrium conditions --
+# (2)-(3) on p.14 for the competitive case, (5)-(6) on p.16 for the open-loop Cournot case --
+# to the segment regime that exhaustive enumeration identifies, and checked by substitution.
+# Exact values are rational and are written as fractions in the derivation; the decimals
+# here are their Float64 values. Units as in the instance file: GW, $/MWh.
+#
+# `tolerance` is the absolute tolerance at which a solver's point is declared to be this
+# equilibrium. Quantities are O(1-10) GW and prices O(10-100) $/MWh; PATH and CCOpt both
+# land within 3e-7 of the exact point, and the nearest wrong regime is O(0.1) away.
+
+tolerance = 1e-5
+
+[competitive]
+x_p = 1.6
+x_b = 8.0
+y_p = [1.6, 0.5, 0.0, 0.0]
+y_b = [8.0, 8.0, 8.0, 7.2]
+lambda_p = [24.0, 0.0, 0.0, 0.0]
+lambda_b = [36.0, 12.0, 2.0, 0.0]
+price = [54.0, 30.0, 20.0, 18.0]
+segment_types = ["a", "c", "e", "d"]   # partition (13), p.22; see segment_type
+
+[open_loop_cournot]
+x_p = 3.2944444444444443      # 593/180
+x_b = 3.011111111111111       # 271/90
+y_p = [3.2944444444444443, 2.7444444444444445, 1.9944444444444445, 1.6]   # 593/180, 247/90, 359/180, 8/5
+y_b = [3.011111111111111, 3.011111111111111, 3.011111111111111, 2.8]      # 271/90 x3, 14/5
+lambda_p = [24.0, 0.0, 0.0, 0.0]
+lambda_b = [38.833333333333336, 9.333333333333334, 1.8333333333333333, 0.0]   # 233/6, 28/3, 11/6, 0
+price = [86.94444444444444, 57.44444444444444, 49.94444444444444, 46.0]     # 1565/18, 517/9, 899/18, 46
+segment_types = ["a", "c", "c", "b"]

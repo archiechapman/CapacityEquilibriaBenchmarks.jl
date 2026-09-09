@@ -1,41 +1,192 @@
 using CapacityEquilibriaBenchmarks
 using CapacityEquilibria
 using Test
+import TOML
 
-# Phase 0 for this repository is narrower than it is for the engine. The engine has already
-# shown that PATH and CCOpt solve a complementarity problem correctly (its F-0001); what is
-# unproven here is that this project can reach the engine and drive it, which is the
-# dependency direction D-0001 turns on.
+# Murphy and Smeers' two open-loop models on two constructed instances, solved with PATH
+# and with CCOpt, and judged against three things that depend on neither solver: a hand
+# derivation of the equilibrium, an exhaustive enumeration of complementarity patterns,
+# and the properties the paper itself states hold at equilibrium.
 #
-# There is no Murphy and Smeers model yet, and no transcribed data. Phase 1 is where those
-# arrive, and it is gated on this passing.
+# Neither edition of the paper publishes a numerical example (FINDINGS.md F-0001, F-0002),
+# so there is no published number to match; DECISIONS.md D-0004 says what "replicated"
+# means here instead. Every published *claim* about the equilibrium that can be checked on
+# a point is checked below, cited by page of the May 2002 working paper.
+
+const DATADIR = joinpath(@__DIR__, "..", "data")
+const INSTANCES = ["a", "b"]
+const BACKENDS = (:path, :ccopt)
+
+instance_path(tag) = joinpath(DATADIR, "ms2002_instance_$tag.toml")
+expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
 
 @testset "CapacityEquilibriaBenchmarks" begin
 
-    @testset "the engine is reachable and drives both backends" begin
+    @testset "Phase 0: the engine is reachable and drives both backends" begin
         M, q = [2.0 1.0; 1.0 2.0], [-4.0, 1.0]
         build() = lcp_model(M, q)
-
         path = solve_complementarity(build, :path)
         ccopt = solve_complementarity(build, :ccopt)
-
         @test lcp_residual(M, q, path.x).worst < 1e-6
         @test lcp_residual(M, q, ccopt.x).worst < 1e-6
         @test path.x ≈ ccopt.x atol = 1e-6
     end
 
     @testset "data/ carries provenance for whatever it holds" begin
-        # The rule this guards is the one AGENTS.md calls the highest-risk point in the
-        # plan: every value in data/ traces to a table and a page. Right now data/ holds
-        # only its provenance file, so the check is vacuously true -- and it is written
-        # now, before the first transcription, because a rule added after the data is a
-        # rule argued against an existing pile of numbers.
-        datadir = joinpath(@__DIR__, "..", "data")
-        @test isfile(joinpath(datadir, "PROVENANCE.md"))
-        transcriptions = filter(f -> endswith(f, ".toml"), readdir(datadir))
-        provenance = read(joinpath(datadir, "PROVENANCE.md"), String)
+        # Every .toml in data/ must be named in PROVENANCE.md. The document cannot make
+        # the numbers right, but it can make an unexplained file impossible.
+        @test isfile(joinpath(DATADIR, "PROVENANCE.md"))
+        transcriptions = filter(f -> endswith(f, ".toml"), readdir(DATADIR))
+        @test !isempty(transcriptions)
+        provenance = read(joinpath(DATADIR, "PROVENANCE.md"), String)
         for file in transcriptions
             @test occursin(file, provenance)
+        end
+    end
+
+    @testset "the loader refuses an instance the paper's results do not cover" begin
+        ok = MSData("ok", 3, 1.0, [20.0, 15.0, 10.0], [2.0, 7.0], [3.0, 1.0])
+        @test check_assumptions(ok) === ok
+        @test_throws ArgumentError check_assumptions(
+            MSData("bad", 3, 1.0, [20.0, 15.0, 10.0], [2.0, 7.0], [1.0, 3.0]))  # peaker not cheaper on peak
+        @test_throws ArgumentError check_assumptions(
+            MSData("bad", 3, 1.0, [10.0, 15.0, 20.0], [2.0, 7.0], [3.0, 1.0]))  # α increasing
+        @test_throws ArgumentError check_assumptions(
+            MSData("bad", 3, -1.0, [20.0, 15.0, 10.0], [2.0, 7.0], [3.0, 1.0])) # β < 0
+        @test_throws ArgumentError check_assumptions(
+            MSData("bad", 3, 1.0, [20.0, 15.0], [2.0, 7.0], [3.0, 1.0]))        # length(α) ≠ S
+        @test_throws ArgumentError ms_lcp(ok, :closed_loop)
+    end
+
+    for tag in INSTANCES
+        data = load_ms_instance(instance_path(tag))
+        expected = TOML.parsefile(expected_path(tag))
+        # The tolerance at which a solver's point is declared to be the derived equilibrium.
+        # A claim about the replication, so it lives with the instance rather than in the
+        # engine (engine docs/BOUNDARY.md).
+        tol = Float64(expected["tolerance"])
+        Sp = peak_segments(data)
+        types(variant) = Symbol.(expected[String(variant)]["segment_types"])
+
+        @testset "instance $(uppercase(tag)) satisfies the paper's stated assumptions" begin
+            # load_ms_instance already threw if not; this makes each one visible.
+            @test data.beta > 0                                             # p.12
+            @test issorted(data.alpha; rev = true) && allunique(data.alpha) # p.12
+            Kp, Kb = data.K[PLAYER_P], data.K[PLAYER_B]
+            νp, νb = data.nu[PLAYER_P], data.nu[PLAYER_B]
+            @test Kp + νp < Kb + νb                                         # p.11
+            @test Kb + data.S * νb < Kp + data.S * νp                       # p.11
+            @test 1 <= Sp < data.S                                          # p.14: a genuine two-technology mix
+        end
+
+        @testset "instance $(uppercase(tag)): the LCP assembly agrees with a direct transcription" begin
+            # ms_lcp builds M and q; ms_conditions writes F row by row from the paper's
+            # equations without M. An index error in either shows up as disagreement on a
+            # point with all-distinct coordinates.
+            for variant in MS_VARIANTS
+                M, q, ix = ms_lcp(data, variant)
+                n = length(ix)
+                @test size(M) == (n, n) && n == 2 + 4 * data.S
+                for z in ([mod(7k, 5) + 0.5 for k in 1:n], [k / 3 for k in 1:n], ones(n))
+                    @test M * z .+ q ≈ ms_conditions(data, variant, z) atol = 1e-12
+                end
+                @test is_monotone(M)   # Lemma 1, p.18, and its competitive counterpart
+            end
+        end
+
+        solutions = Dict{Symbol, Dict{Symbol, MSPoint}}()
+
+        for variant in MS_VARIANTS
+            @testset "instance $(uppercase(tag)), $variant: derivation, enumeration, PATH and CCOpt agree" begin
+                M, q, _ = ms_lcp(data, variant)
+                z_hand = load_ms_expected(data, expected_path(tag), variant)
+
+                # 1. The derived point solves the system, by substitution. If this fails,
+                #    nothing below means anything.
+                @test lcp_residual(M, q, z_hand).worst < 1e-10
+
+                # 2. Exhaustive enumeration, no solver involved, finds that point and
+                #    nothing else in any nondegenerate pattern.
+                en = enumerate_lcp_solutions(M, q)
+                @test length(en.solutions) == 1
+                @test en.solutions[1] ≈ z_hand atol = 1e-8
+
+                # 3. The solution is unique outright: monotone map (above), strictly
+                #    complementary point, nonsingular basis. See enumerate_lcp.jl.
+                @test strictly_complementary(M, q, z_hand)
+                @test basis_nonsingular(M, z_hand)
+
+                # 4. Each backend reaches it, judged on a residual recomputed from its
+                #    point and on distance from the derived point — never on its status.
+                sols = Dict(b => solve_complementarity(() -> lcp_model(M, q), b) for b in BACKENDS)
+                for b in BACKENDS
+                    @test lcp_residual(M, q, sols[b].x).worst < tol
+                    @test sols[b].x ≈ z_hand atol = tol
+                end
+                @test sols[:path].x ≈ sols[:ccopt].x atol = tol
+
+                # 5. The regime is the one the derivation was done on.
+                pt = ms_unpack(data, sols[:path].x)
+                @test [segment_type(data, pt, s) for s in 1:data.S] == types(variant)
+                solutions[variant] = Dict(b => ms_unpack(data, sols[b].x) for b in BACKENDS)
+            end
+        end
+
+        for backend in BACKENDS
+            pc = solutions[:competitive][backend]
+            ol = solutions[:open_loop_cournot][backend]
+
+            @testset "instance $(uppercase(tag)), competitive ($backend): the paper's stated properties hold" begin
+                # Production efficiency, p.14: peakers only in s ≤ S_p, base everywhere.
+                @test production_efficiency_holds(data, pc)
+                # Pricing efficiency, p.15: price = short-run marginal cost + scarcity rent.
+                @test pricing_efficiency_gap(data, pc) < tol
+                # Investment criterion, p.15: K_i = Σ_s max(p^s − ν_i, 0) for an investing
+                # player. Both invest on both instances, asserted so the criterion is not
+                # passing vacuously.
+                @test all(pc.x .> tol)
+                gap = investment_criterion_gap(data, :competitive, pc)
+                @test gap.p < tol && gap.b < tol
+            end
+
+            @testset "instance $(uppercase(tag)), open-loop Cournot ($backend): the paper's stated properties hold" begin
+                # Theorem 1, p.19: the base player always invests a positive amount.
+                @test ol.x[PLAYER_B] > tol
+                # Investment criterion, p.16: K_i = Σ_s max(p^s − β x_i − ν_i, 0).
+                @test all(ol.x .> tol)
+                gap = investment_criterion_gap(data, :open_loop_cournot, ol)
+                @test gap.p < tol && gap.b < tol
+                # Lemma 5, p.21: y_p^s < y_b^s wherever base capacity is not binding.
+                slack = [s for s in 1:data.S if ol.x[PLAYER_B] - ol.y[PLAYER_B, s] > tol]
+                @test !isempty(slack)   # the lemma is exercised, not vacuous
+                for s in slack
+                    @test ol.y[PLAYER_P, s] < ol.y[PLAYER_B, s]
+                end
+                # Lemma 11, p.27: peaker at capacity in s ⇒ base at capacity in s.
+                for s in 1:data.S
+                    if abs(ol.x[PLAYER_P] - ol.y[PLAYER_P, s]) < tol
+                        @test abs(ol.x[PLAYER_B] - ol.y[PLAYER_B, s]) < tol
+                    end
+                end
+                # Corollary 1, p.20: at capacity in s ⇒ at capacity in every s' < s.
+                for i in (PLAYER_P, PLAYER_B), s in 2:data.S
+                    if abs(ol.x[i] - ol.y[i, s]) < tol
+                        @test all(abs(ol.x[i] - ol.y[i, s′]) < tol for s′ in 1:s-1)
+                    end
+                end
+                # Lemma 12, p.29: the peak capacity's marginal values λ_p^s coincide between
+                # the competitive and open-loop equilibria when the peaker invests in both.
+                @test pc.x[PLAYER_P] > tol && ol.x[PLAYER_P] > tol
+                @test ol.λ[PLAYER_P, :] ≈ pc.λ[PLAYER_P, :] atol = tol
+                # Cournot withholding (Theorem 7, p.29, read for the two equilibria built
+                # here): less total capacity and a higher price in every segment.
+                @test sum(ol.x) < sum(pc.x)
+                @test all(ol.price .> pc.price)
+                # p.16: in the open-loop model peakers may operate in s > S_p, where they
+                # are not the efficient technology. On both instances they do, while
+                # competition shuts them off there (production efficiency, above).
+                @test any(ol.y[PLAYER_P, s] > tol for s in Sp+1:data.S)
+            end
         end
     end
 end

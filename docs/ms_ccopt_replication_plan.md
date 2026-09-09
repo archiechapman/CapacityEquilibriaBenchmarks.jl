@@ -48,6 +48,31 @@ Formulate the perfectly competitive benchmark first: the complementarity conditi
 
 Validate both against the paper's published capacities, output levels, and prices, to a stated numerical tolerance. Where a result doesn't match, work through solver settings, numeraire or unit conventions, and the transcription before concluding the paper itself is ambiguous; document whichever of these turns out to be the explanation rather than silently adjusting until the numbers agree. The gate for calling Phase 1 complete is both cases matching the paper within tolerance, with the mismatch investigation, if any was needed, written down.
 
+## Corrections found while executing Phase 1
+
+*Same convention as the Phase 0 corrections: the plan above is left as written, and what was
+found is set beside it, citing the ledger entry that checked it.*
+
+| The plan says | Phase 1 found |
+|---|---|
+| "Transcribe the paper's data directly from its tables: the load-duration-curve blocks … capacity costs, variable costs …" | The edition in hand — the May 2002 working paper, 69 pages — has no tables, no parameter values and no worked example. It is an analytical paper. There was nothing to transcribe except the model's structure and the inequalities on its parameters (F-0001) |
+| "Validate both against the paper's published capacities, output levels, and prices, to a stated numerical tolerance" | No published capacities, outputs or prices exist in this edition. Validation is against the paper's *analytical* results instead: a hand derivation from its equilibrium conditions, an exhaustive enumeration of complementarity patterns, and each theorem, lemma and property the paper states, checked at the solver's point (D-0004, F-0004, F-0005) |
+| "This transcription is the single point of highest risk in the whole plan" | The highest-risk point turned out to be the *construction*: an instance presented as the paper's when it is not. Every file, docstring and report line that carries a number now says it is constructed. The published 2005 version was then checked by the repository owner and has no example either (F-0002) |
+| "it should reproduce the associated planner LP's dual prices" | The planner problem is a QP, not an LP — the utility under affine inverse demand is quadratic — and no QP solver was added to check it. The equivalent check made is the paper's own pricing-efficiency and investment-criterion properties (p.15), which are the planner's KKT conditions read player by player, plus the hand derivation |
+| "a square complementarity system … PATH solves it without touching its free-tier limits" | Confirmed, and more so than expected: both open-loop cases are pure *linear* complementarity problems, n = 2 + 4S = 14 on instance A, so the engine's `lcp_model` and `lcp_residual` apply with no generalisation to mixed systems (F-0003) |
+| "Where a result doesn't match, work through solver settings, numeraire or unit conventions, and the transcription …" | Not exercised. PATH agreed with both solver-free routes to 1e-11 on the first solve of each case. The investigation procedure stands, untested |
+| — (not mentioned) | Uniqueness needed its own argument. Enumeration finds every solution in a nondegenerate pattern but cannot rule out a continuum through a degenerate one; for a monotone LCP a strictly complementary solution with a nonsingular basis is the only solution, and all three conditions are checked (`src/enumerate_lcp.jl`) |
+| — (not mentioned) | The instance exhibits something the paper states only in words (p.16): under Cournot the peaker operates in a segment where it is not the efficient technology, while under competition it does not (F-0005) |
+| — (not mentioned) | One hand-sized instance leaves most of the paper's segment regimes unexercised. A second, built to be reasonable rather than hand-solvable — GW, $/MWh, four quarter-year blocks — covers the regimes the first does not and was run through both solvers at the same time, which pulls Phase 2's solver-agreement question forward into Phase 1 (F-0006, F-0007) |
+
+The first two rows change the meaning of the Phase 1 gate rather than the work. D-0004
+records the reading adopted: PATH's point agrees with the hand derivation and the
+enumeration within a stated tolerance, and every property the paper states holds at it.
+Under that reading the gate is passed; under the plan's literal reading it cannot be passed
+with this edition, and no amount of work here changes that. D-0002's trigger for making the
+repository public is therefore a judgement for its owner rather than a mechanical
+consequence of the tests passing.
+
 ## Phase 2 — Open-loop model as a CCOpt.jl test case
 
 Reformulate the same complementarity system CCOpt.jl's way: build an `NLPModel` carrying the equilibrium residuals as constraints and a constant (zero) objective, then declare the complementary variable pairs with `CCOpt.MPCCModelVarVar(nlp, ind_x1, ind_x2)`. This is a mechanical translation of the Phase 1 model, not a new formulation, so keep the underlying data and equations identical between the two and share the `data/` transcription rather than re-deriving it.

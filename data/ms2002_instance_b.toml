@@ -1,0 +1,68 @@
+# Instance B for Murphy, F. H. and Smeers, Y., "Generation Capacity Expansion in Imperfectly
+# Competitive Restructured Electricity Markets" -- the working paper dated May 2002 (69 pp.),
+# which is the edition in ../literature/. Page numbers below are the paper's printed page
+# numbers (PDF page = printed page + 2). See data/PROVENANCE.md.
+#
+# THIS IS A CONSTRUCTED INSTANCE, NOT A TRANSCRIPTION. Neither the working paper nor the
+# published article contains a numerical example (FINDINGS.md F-0001, F-0002). Where
+# instance A is built to be solved by hand, this one is built to be *reasonable*: a
+# four-block load-duration curve, a gas peaker against a combined-cycle base plant, and
+# quantities and prices of the size a real system shows. Every value was chosen here; the
+# reasoning is beside each one and the units are set out below, so that a reader can judge
+# the choice rather than take it.
+#
+# UNITS. The paper's segments are one unit wide (p.11), so its K and nu are costs per unit of
+# capacity and per unit of output *per segment*. Here a segment is one quarter of a year,
+# tau = 8760/4 = 2190 hours, and:
+#   quantities x, y, q   in GW
+#   prices p, alpha      in $/MWh
+#   operating cost nu    in $/MWh
+#   slope beta           in $/MWh per GW
+#   capacity cost K      in $/MWh -- the annual cost per MW divided by tau, i.e. the price
+#                        premium a plant must earn over every hour of one segment to cover
+#                        its capital cost. K_annual [$/kW-yr] * 1000 / 2190 = K [$/MWh].
+# Dividing a player's annual profit  sum_s tau (p^s - nu_i) y_i^s - K_annual_i x_i  by tau
+# gives the paper's objective in these units with K_i = K_annual_i / tau, so the equilibrium
+# conditions (2)-(3) and (5)-(6) are used exactly as written, with no weights added.
+
+[source]
+paper = "Murphy, F. H. and Smeers, Y., Generation Capacity Expansion in Imperfectly Competitive Restructured Electricity Markets"
+edition = "working paper, May 2002, 69 pp.; pre-publication version of Operations Research 53(4) 646-661, 2005"
+kind = "constructed"
+
+[assumptions]
+# Transcribed from the paper. Checked by `check_assumptions` before any model is built.
+segments_unit_width = "segments s = 1..S are one unit wide; s = 1 is the peak segment, s = S the base segment (p.11, section 2)"
+demand = "p^s = alpha^s - beta * q^s for s = 1..S, beta > 0, same slope in every segment (p.12, section 2)"
+demand_ordering = "alpha^1 > alpha^2 > ... > alpha^S: the inverse demand curves do not cross (p.12, section 2)"
+peaker_cheaper_on_peak = "K_p + nu_p < K_b + nu_b (p.11, section 2)"
+base_cheaper_on_base = "K_b + S*nu_b < K_p + S*nu_p (p.11, section 2)"
+specialisation = "player p builds and operates only peak plants; player b only base plants (p.12, section 2)"
+
+[instance]
+name = "B"
+S = 4                        # four load blocks of 2190 h each: peak, high shoulder, low shoulder, base (p.11)
+beta = 10.0                  # $/MWh per GW. At a reference point of 10 GW and $50/MWh this is a
+                             # price elasticity of (1/beta)(p/q) = 0.5, a long-run figure (p.12)
+alpha = [150.0, 115.0, 100.0, 90.0]
+                             # $/MWh. Chosen so that demand at a $50/MWh reference price is
+                             # (10, 6.5, 5, 4) GW block by block -- a peak-to-base ratio of 2.5,
+                             # with the peak block standing well above the shoulder so that a
+                             # peaker share of the mix is worth building. Strictly decreasing (p.12)
+
+[instance.peak]              # player p: open-cycle gas turbine (p.11)
+K = 24.0                     # $/MWh per segment = 52,560 $/MW-yr = $52.6/kW-yr annualised, / 2190 h
+nu = 30.0                    # $/MWh: gas at a heat rate of about 10 GJ/MWh
+
+[instance.base]              # player b: combined-cycle gas turbine (p.11)
+K = 50.0                     # $/MWh per segment = 109,500 $/MW-yr = $109.5/kW-yr annualised, / 2190 h
+nu = 18.0                    # $/MWh: gas at a heat rate of about 6.5 GJ/MWh
+
+# Checks of the paper's assumptions on these values: K_p + nu_p = 54 < 68 = K_b + nu_b;
+# K_b + S nu_b = 122 < 144 = K_p + S nu_p. Peakers are cost-effective for s <= S_p with
+# K_p + s nu_p < K_b + s nu_b (p.14): s = 1: 54 < 68; s = 2: 84 < 86; s = 3: 114 > 104, so
+# S_p = 2, and no s ties. A first candidate with a flatter curve, alpha = (150, 130, 115, 100),
+# was tried and rejected: its competitive peaker was 0.3 GW against 9.5 GW of base, a mix no
+# real system shows, because the top two blocks sat too close together. Three peakier shapes
+# gave similar equilibria; this one has the widest spread of segment regimes, which is what
+# a benchmark wants (FINDINGS.md F-0006).

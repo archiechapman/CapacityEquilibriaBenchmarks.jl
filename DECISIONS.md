@@ -91,3 +91,71 @@ The engine is currently reached through a `[sources]` relative path, so this man
 `path = "../CapacityEquilibria.jl"` and assumes the two repositories are cloned side by side. That is
 adequate while both are private and co-developed and is the weakest link in this entry's reproducibility
 claim; it is named in `revisit_if` above rather than left to be discovered.
+
+## D-0004 — With no published numbers, ground truth for Phase 1 is the paper's analysis, a hand derivation and exhaustive enumeration.
+
+- date: 2026-09-09
+- status: active
+- question: What does "matches the paper within tolerance" mean when the edition in hand
+  publishes no numerical example at all?
+- options: stop until the published article is obtained; construct an instance; borrow Stoft's figures — in
+  full: stop Phase 1 until the published 2005 article is obtained and checked for a
+  numerical example; construct an instance satisfying the paper's stated assumptions and
+  validate the solver against the paper's analytical results on it; take "typical" cost
+  figures from Stoft (2002), which the paper cites but does not reproduce, and present
+  them as the paper's
+- decision: Construct an instance, and say so everywhere it appears. Ground truth for a
+  case is then three independent things that must agree: the equilibrium derived by hand
+  from the paper's equilibrium conditions; every solution found by enumerating all
+  complementarity patterns of the LCP, with uniqueness argued from monotonicity and strict
+  complementarity; and the properties the paper states hold at equilibrium — production
+  and pricing efficiency, the investment criterion, Theorem 1, Lemmas 5, 11 and 12,
+  Corollary 1 — each checked on the solver's point. The Phase 1 gate is read as: PATH's
+  point agrees with the hand derivation and the enumeration within a stated tolerance, and
+  every stated property holds at it.
+- evidence: `FINDINGS.md` F-0001 — the 69-page working paper contains no table of
+  parameters or results, checked by reading it and by text search. The rest is judgement:
+  a constructed instance validated three ways is a stronger correctness check on the model
+  code than a transcribed instance validated once against a printed number would be, and it
+  is the only check available. What it cannot be is a replication of published numbers, and
+  the report must not call it one.
+- cost_of_change: Cheap. If the published article turns out to carry a numerical example,
+  transcribing it is a new data file and a new test, and everything built here — the LCP
+  assembly, the oracle, the property checks — applies to it unchanged. The constructed
+  instance stays as a regression case either way. The expensive direction would have been
+  presenting Stoft's figures, or any invented ones, as the paper's.
+- revisit_if: The published *Operations Research* version is obtained and contains a
+  numerical example (resolve `CONFIRM(F-0002)`); or a later paper in this programme
+  publishes numbers for this model, which would then become the transcribed case.
+
+The third option was rejected outright rather than weighed: a number attributed to a source
+that does not contain it is the exact failure `data/PROVENANCE.md` exists to prevent.
+
+## D-0005 — The Murphy–Smeers models are assembled as explicit LCP matrices, not as structured JuMP models.
+
+- date: 2026-09-09
+- status: active
+- question: Should the model be written as a JuMP model with named variables and one
+  `MOI.Complements` constraint, or as a matrix `M` and vector `q` fed to the engine's
+  `lcp_model`?
+- options: a structured JuMP model, readable and closer to the paper's notation, with its
+  own model-specific residual function; explicit `(M, q)` assembled from the data, reusing
+  `lcp_model` and `lcp_residual` unchanged; both, with a test that they coincide
+- decision: Explicit `(M, q)`, built by `ms_lcp` from three index functions that fix the
+  variable layout once. The pairing — the one dangerous area, per the engine's
+  `docs/COMPLEMENTARITY_PAIRING.md` — is then the layout and nothing else. The risk that
+  the layout is mis-assembled is met by `ms_conditions`, a second transcription of the same
+  equations written row by row without `M`, and a test that the two agree at arbitrary
+  points.
+- evidence: `FINDINGS.md` F-0003 — both models are pure linear complementarity problems,
+  so nothing the structured form would add is needed to express them, and the engine's
+  residual oracle applies without generalisation. Judgement on the rest: two transcriptions
+  that must agree catch an index error; one readable transcription does not.
+- cost_of_change: Cheap now. A structured builder can be added beside `ms_lcp` at any time,
+  and the agreement test extends to it. It becomes expensive only if Phase 2's emitter is
+  written against one form and the other is later wanted upstream.
+- revisit_if: The closed-loop model (Phase 3) turns out not to be expressible as an LCP —
+  which it will not be, since the paper's (16) on p.24 involves the second-stage solution
+  map — at which point the engine needs a nonlinear complementarity form and this decision
+  covers only the open-loop cases; or CCOpt.jl's maintainers ask for the upstream test in
+  JuMP form.

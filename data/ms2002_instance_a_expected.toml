@@ -1,0 +1,39 @@
+# Hand-derived equilibria of instance A (data/ms2002_instance_a.toml). NOT from the paper:
+# the paper publishes no numbers (FINDINGS.md F-0001). Derived by hand in
+# docs/ms2002_instance_a_derivation.md by applying the paper's equilibrium conditions --
+# (2)-(3) on p.14 for the competitive case, (5)-(6) on p.16 for the open-loop Cournot case --
+# and checked there by substitution. The tests treat these as one of three independent
+# routes to the answer, alongside exhaustive enumeration and PATH.
+#
+# Exact values are rational; the decimals here are exact where they terminate and are
+# written as fractions in the derivation. Vectors are indexed by segment s = 1..S.
+#
+# `tolerance` is the absolute tolerance at which a solver's point is declared to be this
+# equilibrium. PATH lands within 1e-11 and CCOpt within 1e-7; 1e-6 leaves room for a less
+# exact solver without admitting a wrong regime, whose distance from the right one is O(1).
+
+tolerance = 1e-6
+
+[competitive]
+x_p = 7.0
+x_b = 8.0
+y_p = [7.0, 4.0, 0.0]
+y_b = [8.0, 8.0, 8.0]
+lambda_p = [2.0, 0.0, 0.0]
+lambda_b = [4.0, 2.0, 1.0]
+price = [5.0, 3.0, 2.0]
+segment_types = ["a", "c", "e"]   # partition (13), p.22; see segment_type
+# s=1 both at capacity; s=2 peaker interior, base at capacity; s=3 peaker off, base at
+# capacity. Peakers operate only in s <= S_p = 2 (p.14).
+
+[open_loop_cournot]
+x_p = 5.416666666666667      # 65/12
+x_b = 4.166666666666667      # 25/6
+y_p = [5.416666666666667, 3.9166666666666665, 1.6666666666666667]   # 65/12, 47/12, 5/3
+y_b = [4.166666666666667, 4.166666666666667, 3.6666666666666665]    # 25/6, 25/6, 11/3
+lambda_p = [2.0, 0.0, 0.0]
+lambda_b = [5.25, 1.75, 0.0]
+price = [10.416666666666666, 6.916666666666667, 4.666666666666667]  # 125/12, 83/12, 14/3
+segment_types = ["a", "c", "b"]
+# s=1 both at capacity; s=2 base at capacity and peaker interior; s=3 both interior. The
+# peaker operates in s=3 > S_p, which p.16 says can happen in this model.

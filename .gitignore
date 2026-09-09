@@ -1,0 +1,4 @@
+
+# Python bytecode from the guardrail gates (ci/gates/, sync/)
+__pycache__/
+*.py[cod]

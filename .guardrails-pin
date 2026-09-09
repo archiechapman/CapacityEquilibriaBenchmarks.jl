@@ -1,0 +1,5 @@
+# Written by research-guardrails/sync/install.py.
+# Records which guardrails version the AGENTS.md block was copied from, and its hash.
+# Being behind is fine and is not drift; editing the block in place is drift.
+- guardrails_version: 0.1.0
+- block_sha256: 96871fb3a705b18571e83423f5ab887ce3180fbfa4a0e091376816748522844a

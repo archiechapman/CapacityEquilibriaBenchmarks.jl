@@ -61,6 +61,17 @@ explains how to set one before it is.
 than a library, and the resolved dependency versions are part of the result (`DECISIONS.md`,
 D-0003).
 
+### PATH licence
+
+Without a licence PATH runs in demonstration mode (300 variables, 2000 nonzeros), which is
+enough for the two instances here and will not be enough for the closed-loop runs. The PATH
+authors publish a courtesy licence string at
+<https://pages.cs.wisc.edu/~ferris/path/julia/LICENSE>; set it as the `PATH_LICENSE_STRING`
+environment variable, permanently rather than per session, following
+<https://pages.cs.wisc.edu/~ferris/path/julia/README>. The engine's README has the
+per-shell commands and the test that checks the licence is actually in effect. The string
+is not recorded anywhere in this repository, and should not be.
+
 ## Using the models
 
 ```julia
@@ -98,3 +109,10 @@ the model that validated it.
 - `docs/ms2002_instance_a_derivation.md`, `docs/ms2002_instance_b_derivation.md` — the equilibria, by hand
 - `data/PROVENANCE.md` — where every number came from
 - `FINDINGS.md`, `DECISIONS.md` — the claim ledger and the decision log
+
+## Acknowledgements
+
+The ground-truth solves here depend on PATH. Thanks to Steven Dirkse, Michael Ferris and
+Todd Munson for making the solver, and a courtesy licence for it, freely available to
+academic users, and to Oscar Dowson and the PATHSolver.jl contributors for the Julia
+interface that makes it usable from JuMP.

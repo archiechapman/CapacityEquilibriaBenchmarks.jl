@@ -1,0 +1,16 @@
+# Line endings.
+#
+# The index is already LF throughout; this pins the working tree to LF as well, on
+# every platform. It matters most for files this repo produces for somewhere else --
+# a test case emitted for another project should not arrive as a CRLF diff against
+# an LF repo -- and secondarily so that non-git tooling sees the same bytes git does.
+#
+# Note this is not what keeps the guardrail gates honest: `_gatelib.hash_text`
+# normalises line endings before hashing, so CRLF churn was never drift to them.
+
+* text=auto eol=lf
+
+# Converted by nothing.
+*.png  binary
+*.pdf  binary
+*.jld2 binary

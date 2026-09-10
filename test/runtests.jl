@@ -2,6 +2,8 @@ using CapacityEquilibriaBenchmarks
 using CapacityEquilibria
 using Test
 import TOML
+import NLPModels
+import MPCCModels
 
 # Murphy and Smeers' two open-loop models on two constructed instances, solved with PATH
 # and with CCOpt, and judged against three things that depend on neither solver: a hand
@@ -330,6 +332,89 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
                     bad = ms_second_stage(data, en.solutions[k])
                     @test any(en.solutions[k] .<= tol)
                     @test !ms_closed_loop_conditions_decomposed(data, bad).valid
+                end
+            end
+
+            @testset "instance $(uppercase(tag)): the best response as an MPCC for CCOpt" begin
+                # Phase 4. One player's long-run problem, written as a genuine MPCC — a
+                # nonconvex quadratic objective over the second-stage complementarity
+                # conditions — and handed to CCOpt. Its global solution is known exactly
+                # from Phase 3, which is what makes it a test rather than a demonstration.
+                x_star = load_ms_expected(data, expected_path(tag),
+                                          :closed_loop_cournot)[1:2]
+
+                @testset "the model's callbacks are the problem they claim to be" begin
+                    mpcc, idx = best_response_mpcc(data, PLAYER_B, x_star)
+                    nlp = idx.nlp
+                    n = 1 + 8 * data.S
+                    @test NLPModels.get_nvar(nlp) == n
+                    @test NLPModels.get_ncon(nlp) == 4 * data.S
+                    @test MPCCModels.get_ncc(mpcc) == 4 * data.S
+                    @test NLPModels.get_lvar(nlp) == zeros(n)
+                    # Objective and gradient against a direct evaluation at a point with
+                    # all-distinct coordinates.
+                    z = [0.3 + 0.11 * k for k in 1:n]
+                    i, o = PLAYER_B, PLAYER_P
+                    direct = data.K[i] * z[1] + sum(
+                        (data.nu[i] - data.alpha[s] +
+                         data.beta * (z[1 + (1 - 1) * data.S + s] +
+                                      z[1 + (2 - 1) * data.S + s])) *
+                        z[1 + (i - 1) * data.S + s] for s in 1:data.S)
+                    @test NLPModels.obj(nlp, z) ≈ direct
+                    # Gradient against a central difference.
+                    g = NLPModels.grad(nlp, z)
+                    h = 1e-6
+                    for k in (1, 2, 1 + data.S + 1, 1 + 2 * data.S + 1)
+                        zp = copy(z); zp[k] += h
+                        zm = copy(z); zm[k] -= h
+                        @test g[k] ≈ (NLPModels.obj(nlp, zp) - NLPModels.obj(nlp, zm)) / (2h) atol = 1e-5
+                    end
+                    # The constraints reproduce the second stage: at the equilibrium's own
+                    # solution they are satisfied exactly.
+                    z_eq = best_response_start(data, i, x_star)
+                    @test maximum(abs.(nlp.A * z_eq .- NLPModels.get_lcon(nlp))) < 1e-8
+                    # And the Hessian is the indefinite block the objective implies.
+                    H = Matrix(NLPModels.hess(nlp, z))
+                    a = 1 + (i - 1) * data.S + 1
+                    b = 1 + (o - 1) * data.S + 1
+                    @test H[a, a] ≈ 2 * data.beta
+                    @test H[max(a, b), min(a, b)] ≈ data.beta
+                end
+
+                @testset "CCOpt reaches the global best response" begin
+                    for i in (PLAYER_P, PLAYER_B), method in (:relaxation, :penalty)
+                        exact = best_response(data, i, x_star)
+                        r = solve_best_response_mpcc(data, i, x_star; method = method)
+                        @test r.feasibility < 1e-6
+                        @test r.complementarity < 1e-3
+                        @test r.x_i ≈ exact.x_i atol = 1e-4
+                        @test r.objective ≈ exact.objective atol = 1e-4
+                        # At the equilibrium each player's best response is its own capacity.
+                        @test r.x_i ≈ x_star[i] atol = 1e-4
+                    end
+                end
+
+                @testset "CCOpt escapes a local optimum it is started at" begin
+                    # The sharpest test available. At a corner root of (16) the player
+                    # holding nothing is at a local optimum: no small increase pays. A
+                    # global increase pays a great deal. Started exactly there, with every
+                    # variable consistent, a method that only moves downhill would stay.
+                    en = enumerate_closed_loop(data)
+                    corners = [x for x in en.solutions if best_response_gap(data, x).gap > 0]
+                    @test length(corners) == 2
+                    for xc in corners
+                        i = xc[PLAYER_P] < 1e-9 ? PLAYER_P : PLAYER_B
+                        @test xc[i] < 1e-9                       # it starts at zero
+                        exact = best_response(data, i, xc)
+                        @test exact.x_i > 1.0                    # and the answer is far away
+                        z0 = best_response_start(data, i, xc)
+                        for method in (:relaxation, :penalty)
+                            r = solve_best_response_mpcc(data, i, xc;
+                                                         method = method, x0 = z0)
+                            @test r.x_i ≈ exact.x_i atol = 1e-4
+                            @test r.x_i > 1.0                    # it did not stay put
+                        end
+                    end
                 end
             end
 

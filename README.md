@@ -37,8 +37,8 @@ against a combined-cycle plant over four quarter-year load blocks.
 | `src/enumerate_lcp.jl` | The solver-free oracle: every solution of a small LCP by enumerating its complementarity patterns, plus the monotonicity and strict-complementarity checks that make one solution provably the only one. |
 | `test/` | The validation: both instances, both models, both solvers, each property cited to its page. |
 | `docs/` | The plan and its corrections, the derivations of both instances, and the replication report. |
-| `scripts/` | `report_agreement.jl` prints the solver-agreement table; `emit_upstream_test.jl` writes the upstream file; `negative_controls.jl` breaks a copy of that file eight ways and checks that the tests notice. |
-| `upstream/` | `test_murphy_smeers_lcp.jl`, the test file offered to CCOpt.jl — generated, so edit the emitter and never the file — beside `PULL_REQUEST.md`, the hand-written description that would accompany it. |
+| `scripts/` | `report_agreement.jl` prints the solver-agreement table; `emit_upstream_test.jl` writes the upstream file; `negative_controls.jl` breaks a copy of it eight ways and checks the tests notice; `check_upstream_portable.jl` runs it in a CCOpt-only environment; `share_upstream.sh` publishes it as a gist. |
+| `upstream/` | `test_murphy_smeers_lcp.jl`, the test file offered to CCOpt.jl — generated, so edit the emitter and never the file — beside `ISSUE.md` and `PULL_REQUEST.md`, the hand-written note and description that would accompany it. Nothing has been posted. |
 
 ## Getting set up
 

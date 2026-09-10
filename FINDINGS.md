@@ -300,6 +300,94 @@ Worth noting what the check does *not* remove. It runs one Julia version on one 
 system, and CCOpt's CI does not necessarily match either. If the file is offered and their
 CI is the first thing to see it, that is where a platform difference would surface.
 
+
+## F-0012 — The closed-loop model shares its entire second stage with the open-loop Cournot model, and its one extra ingredient is a closed-form derivative, not a differentiated solver.
+
+- tier: validated
+- status: settled
+- date: 2026-09-10
+- evidence: `src/murphy_smeers_closed_loop.jl` for the transcription, each line cited to the May 2002 working paper; `test/runtests.jl`, the three "Phase 3, closed-loop" testsets, 439/439 passing — at the open-loop capacities of both instances the second-stage LCP returns the open-loop equilibrium's own outputs and duals to 0.0 and 9.6e-15 with a recomputed residual of 0.0; Lemma 7's derivative table agrees with a forward difference of the second-stage solve to 1.5e-10 on every segment and both players; equation (16) built term by term agrees with an independent decomposition of it to better than 1e-9; at the open-loop point ξ_p is 0.0 and ξ_b is −25/12 on instance A and −271/9 on instance B, both matching a closed-form prediction computed outside the function under test
+- boundary: two constructed instances, evaluated at one capacity vector each — the open-loop equilibrium — so this establishes that the pieces are transcribed correctly, not that any closed-loop equilibrium has been found; both instances have regimes (a), (c) and (b) only, so the derivative table's (d) and (e) rows are transcribed but unexercised, and an instance reaching them would be a real extension of this check; equation (16) is stated in the paper only at points where `y(x)` is differentiable, and nothing here detects a kink, so a candidate sitting on one would be silently mis-tested; the forward difference uses `h = 1e-6` at a point interior to its regime, and at a kink it would disagree with the analytic derivative for a correct reason rather than an incorrect one
+- supersedes: none — refines F-0003
+
+F-0003 recorded that the closed-loop conditions are not an LCP. That stands for the first
+stage and is wrong about the model as a whole. The short-run conditions (4), restated on
+p.24, are line for line the `y` and `λ` rows of the open-loop Cournot LCP with `x` moved
+out of the variables and into `q`. So the second stage is an LCP with a unique solution
+(Lemma 2, p.19), and every tool this repository already has applies to it: PATH, both CCOpt
+methods, `lcp_residual`, and the enumeration oracle.
+
+What is new is one object: `B_i y_j = ∂y_j/∂x_i`, the sensitivity of the second-stage
+equilibrium to first-stage capacity, which the open-loop player ignores and the closed-loop
+player exploits. Lemma 7 (14), p.22 gives it in closed form, and it is piecewise constant —
+it depends on the segment only through which of the five regimes of partition (13) the
+segment is in. So the closed-loop conditions can be evaluated exactly, with no automatic
+differentiation and no numerical derivative in the model itself.
+
+The two transcriptions of (16) collapse to an identity worth stating, because it is the
+entire difference between the models:
+
+    ξ_i = [K_i − Σ_s λ_i^s] − (β/2) Σ_{s ∈ C_i} y_i^s
+
+where `C_i` is the set of type-(c) segments in which player `i` is at capacity. The bracket
+is the open-loop investment condition (6), p.16. Everything else in (16) cancels, because
+the diagonal `B_i y_i` is 1 exactly where the player is at capacity and 0 exactly where its
+`λ_i^s` is already 0.
+
+Three of the paper's results are then visible rather than asserted. Theorem 2, p.25 says
+the equilibria coincide when no segment is type (c), which is when the correction is empty.
+Corollary 3 (18), p.28 says a closed-loop equilibrium with a type-(c) segment has
+`K_b > Σ λ_b` and `K_p = Σ λ_p`, which is the correction falling on one player only. And at
+the open-loop capacities of both instances `ξ_p` is exactly zero while `ξ_b` is strictly
+negative, meaning the base player would gain by investing more — the direction Theorem 5,
+p.28 gives for closed-loop base capacity, and the reason Theorem 3, p.26 says the open-loop
+point is not a closed-loop equilibrium.
+
+
+## F-0013 — Both instances have a closed-loop equilibrium, and on both, equation (16) has two further roots that are not equilibria.
+
+- tier: validated
+- status: settled
+- date: 2026-09-10
+- evidence: `src/enumerate_closed_loop.jl`, which enumerates all `2^(4S)` second-stage complementarity patterns and the four first-stage patterns each induces, with no solver in the search; `test/runtests.jl`, testset "the closed-loop equilibrium, and the points that are not", 3.7 s and 7.2 s respectively — three roots of (16) on each instance, of which exactly one has a zero best-response gap; the equilibria are `x = (5, 5)` on instance A and `x = (3.03, 3.54)` on instance B, both with a recomputed (16) residual at or below 3.7e-13, recorded in `data/*_expected.toml` and re-derived by the test rather than read from it; the two other roots on each instance are corners at which one player invests nothing, and the other player can improve its objective by 46.3 and 32.0 on instance A and by 322.5 and 187.9 on instance B
+- boundary: two constructed instances; the enumeration finds every root of (16) *at a differentiable point*, and an equilibrium sitting on a kink between regimes would be missed entirely, which this cannot rule out (Lemma 2, p.19 gives only left and right derivatives, and (16) is stated only where they agree); the best-response test is a scan on a 601-point grid per player, so it refutes a candidate decisively and certifies one only up to that grid — it cannot exclude a profitable deviation between grid points; `2^(4S)` is 4096 and 65536 here and hopeless by `S = 6`, the same wall `enumerate_lcp.jl` hits; nothing here establishes that the surviving point is the *only* equilibrium, and D-0006 forbids saying so
+- supersedes: none
+
+The result Phase 3 was for, and a result the plan did not anticipate.
+
+**The equilibria.** Instance A settles at `x = (5, 5)` exactly, with prices `(10, 13/2, 14/3)`
+and regimes (a), (c), (b). Instance B settles at `x = (3.03, 3.54)`, prices
+`(84.3, 54.8, 148/3, 46)`, regimes (a), (c), (b), (b). Every comparative result the paper
+states holds at both: total capacity exceeds the open-loop equilibrium's (Theorem 4, p.28),
+base capacity likewise (Theorem 5), every price is below the open-loop price (Theorem 6),
+total capacity falls between the open-loop and competitive equilibria (Theorem 7, p.29),
+`λ_p` is identical to the open-loop and competitive values (Lemma 12, p.29), and the
+investment criterion splits as Corollary 3 (18), p.28 requires, with `K_p = Σ λ_p` and
+`K_b > Σ λ_b`.
+
+**Equation (16) is necessary and not sufficient, and this is the demonstration.** On each
+instance two further capacity vectors satisfy it: one where the base player invests nothing
+and one where the peak player does. Both are genuine roots — the residual is zero, not
+small — and both are refuted by a best-response scan, decisively, by margins of tens to
+hundreds. They also violate Theorems 4, 6 and 7, which is the paper's own theory reporting
+the same thing.
+
+This is Lemma 13, p.31 made concrete. The long-run objective is only piecewise convex, and
+its marginal cost can jump downwards (Figure 4, p.32), so a player sitting at zero capacity
+can face a positive marginal cost of the first unit — locally optimal — while a larger
+investment that crosses into another regime is strictly better. A first-order condition
+cannot see across that jump. Nothing in this repository will report a root of (16) as an
+equilibrium without the best-response check, and D-0006 is amended to say so.
+
+**One error this turned up.** `ms_closed_loop_conditions_decomposed` writes (16) as the
+open-loop condition plus a type-(c) correction. That identity assumes a player's `λ_i^s` is
+zero wherever it is not at capacity, which holds only when the player has invested
+something: at `x_i = 0` the capacity constraint binds trivially and `λ_i^s` can be large. At
+the corner roots the two transcriptions disagree by 25 and 168.5 on instance A. The
+identity, its boundary, and a `valid` flag are now stated; the earlier version had been
+checked only at points where both players invest, which is exactly where it happens to be
+right. The primary transcription, built term by term from Lemma 7, was correct throughout.
+
 ---
 
 ## What this does not establish
@@ -349,6 +437,9 @@ CI is the first thing to see it, that is where a platform difference would surfa
    posting is a deliberate step that has not been taken. The artifact stands on its own
    as a validation case either way (the plan's own framing), and the engine's F-0007 — the
    `RawStatusString` bug — is worth reporting with it.
-6. Phase 3: the closed-loop model. Its conditions are not an LCP (F-0003), so neither the
-   enumeration oracle nor `lcp_residual` carries over unchanged, and its equilibrium is not
-   unique in general.
+6. Phase 3, in progress. The model is transcribed (F-0012), both instances' closed-loop
+   equilibria are found and checked against every comparative result the paper states
+   (F-0013), and D-0006 records what validation means here. What remains: an instance whose
+   equilibrium sits on a kink, which the enumeration would miss and which would test the
+   boundary F-0013 states; diagonalization, which the plan asks for and which has not been
+   built because enumeration answered the question first; and Phase 4's monolithic MPCC.

@@ -147,6 +147,69 @@ claim; it is named in `revisit_if` above rather than left to be discovered.
 The third option was rejected outright rather than weighed: a number attributed to a source
 that does not contain it is the exact failure `data/PROVENANCE.md` exists to prevent.
 
+## D-0006 — Phase 3's ground truth is the second stage validated as before, the first stage transcribed twice and checked against the paper's comparative theorems, and no claim of uniqueness.
+
+- date: 2026-09-10
+- status: active
+- question: What does "validated" mean for the closed-loop model, given that D-0004's
+  three-legged standard loses two of its legs — there is no exhaustive enumeration for a
+  first stage that is not an LCP, and the paper itself does not claim a unique equilibrium?
+- options: inherit D-0004 unchanged and hope the machinery stretches; abandon it and report
+  only "diagonalization-consistent", as the plan's Phase 4 language suggests; keep the
+  parts that survive and name replacements for the parts that do not
+- decision: The third. Concretely, and separately for the two stages.
+  **Second stage**: D-0004 applies unchanged. It is an LCP with a unique solution (Lemma 2,
+  p.19), so hand derivation, exhaustive enumeration of complementarity patterns, and the
+  monotone-plus-strictly-complementary uniqueness argument all carry over, and PATH remains
+  the oracle. **First stage**: three things replace enumeration. One, equation (16) is
+  transcribed twice, term by term from Lemma 7 and again as the open-loop condition plus a
+  type-(c) correction, and the two must agree — the `ms_conditions` pattern of D-0005.
+  Two, Lemma 7's derivative table is checked against numerical differentiation of the
+  second-stage solve, which is independent of the table in the way an oracle must be.
+  Three, the paper's Theorems 2 to 7, Corollary 3 and Lemma 12 relate any closed-loop point
+  to the open-loop and competitive equilibria, both of which are already validated at the
+  `validated` tier (F-0004 to F-0006), so they are checkable rather than decorative.
+  **Uniqueness is not claimed, in either direction.** A point satisfying (16) is a
+  candidate. Nothing in this repository will describe a closed-loop result as *the*
+  equilibrium unless the paper's own section 7 conditions are checked for that instance.
+- evidence: `FINDINGS.md` F-0012 for the structure and the checks; the paper's section 7,
+  Lemma 13, p.31 and Figure 4, p.32 for why uniqueness cannot be assumed — the objective is
+  only piecewise convex and its marginal cost can jump downwards; D-0004 for the standard
+  this modifies rather than replaces.
+- cost_of_change: Moderate and worth paying attention to. The second-stage half is free to
+  keep. The first-stage half is a claim about what the repository will and will not say,
+  and weakening it later — describing a candidate as the equilibrium once one is found —
+  would retroactively devalue the open-loop results, which were careful about exactly this.
+- revisit_if: An instance is built whose closed-loop equilibrium can be shown unique by the
+  paper's section 7 machinery, in which case the uniqueness clause is met for that instance
+  and should be stated there rather than relaxed here; or the first stage turns out to admit
+  an enumeration of its own over regime assignments, which would restore something close to
+  D-0004's second leg and is worth trying before settling for less.
+
+The first stage has only two variables, one capacity per player, and the second-stage
+solution is piecewise affine in them. That is a small enough space to explore globally by
+other means, and an enumeration over regime assignments may well be possible. It has not
+been attempted, and the `revisit_if` above is a note to try it rather than a decision that
+it will not work.
+
+**Amended 2026-09-10, after the enumeration was attempted and worked (F-0013).** Two
+changes, both recorded here rather than by rewriting the decision above.
+
+First, the second leg of D-0004 is restored, in a form specific to this stage:
+`enumerate_closed_loop` finds every root of (16) at a differentiable point, by enumerating
+second-stage complementarity patterns and the four first-stage patterns each one induces.
+It consults no solver during the search, and each candidate is re-verified against a real
+second-stage solve afterwards.
+
+Second, and not anticipated above, a **fourth** leg turned out to be necessary rather than
+optional. Equation (16) is a first-order condition, and on both instances it has three
+roots of which only one is an equilibrium; the other two are corners refuted by a global
+best-response scan. So the standard for this repository is now: a root of (16) is reported
+as an equilibrium only when `best_response_gap` finds no profitable deviation for either
+player. A root without that check is a candidate and must be described as one. This is a
+strengthening of the decision above, not a relaxation, and it is the reason the word
+"candidate" in it was worth writing down before any equilibrium had been found.
+
 ## D-0005 — The Murphy–Smeers models are assembled as explicit LCP matrices, not as structured JuMP models.
 
 - date: 2026-09-09

@@ -67,6 +67,30 @@ reproduce them, and that book is not in hand, so no value here is attributed to 
 | File | Values | Source | Notes |
 |---|---|---|---|
 | `ms2002_instance_a.toml` | `S = 3`, `β = 1`, `α = (20, 15, 10)`, `K = (2, 7)`, `ν = (3, 1)` | **Constructed.** Chosen here subject to the paper's assumptions on pp.11–12, each cited beside the value | Chosen small and rational so both equilibria can be derived by hand. Implies `S_p = 2` (p.14) |
-| `ms2002_instance_a_expected.toml` | Both equilibria of instance A | **Hand-derived** in `docs/ms2002_instance_a_derivation.md` from equations (2)–(3), p.14 and (5)–(6), p.16 | Not the paper's numbers. One of three independent routes the tests compare (F-0004, F-0005) |
+| `ms2002_instance_a_expected.toml` | The competitive and open-loop equilibria of instance A | **Hand-derived** in `docs/ms2002_instance_a_derivation.md` from equations (2)–(3), p.14 and (5)–(6), p.16 | Not the paper's numbers. One of three independent routes the tests compare (F-0004, F-0005) |
 | `ms2002_instance_b.toml` | `S = 4`, `β = 10`, `α = (150, 115, 100, 90)`, `K = (24, 50)`, `ν = (30, 18)` | **Constructed.** Chosen here subject to the paper's assumptions on pp.11–12, each cited beside the value; the physical reasoning for each value is in the file | Units GW and $/MWh with quarter-year segments; `K` is the annualised cost per MW divided by the 2190 h segment, so the paper's unit-width equations apply unchanged. Implies `S_p = 2`. See F-0006 for the candidates rejected |
-| `ms2002_instance_b_expected.toml` | Both equilibria of instance B | **Hand-derived** in `docs/ms2002_instance_b_derivation.md` from the same equations, on the regime that exhaustive enumeration identifies | Not the paper's numbers. Exact rationals; checked by substitution (F-0006) |
+| `ms2002_instance_b_expected.toml` | The competitive and open-loop equilibria of instance B | **Hand-derived** in `docs/ms2002_instance_b_derivation.md` from the same equations, on the regime that exhaustive enumeration identifies | Not the paper's numbers. Exact rationals; checked by substitution (F-0006) |
+
+### The closed-loop equilibria, added 2026-09-10
+
+The `[closed_loop_cournot]` section of each `*_expected.toml` is the one place in `data/`
+whose values were **not** derived by hand. They were found by `enumerate_closed_loop`,
+which enumerates the second-stage complementarity patterns and solves the two-variable
+problem each one induces, and they are recorded here so that the tests compare against a
+committed number rather than recomputing one and agreeing with themselves.
+
+That is a weaker provenance than the rest of this directory and it is labelled as such in
+both files. What stands behind the numbers instead of a hand derivation:
+
+1. the residual of equation (16), p.24, recomputed at the point;
+2. a global best-response scan over each player's capacity, which finds no profitable
+   deviation — this is what distinguishes the equilibrium from the two other points that
+   satisfy (16) on each instance and are not equilibria (`FINDINGS.md` F-0013);
+3. the paper's Theorems 4, 5, 6 and 7, Lemma 12 and Corollary 3, which relate any
+   closed-loop equilibrium to the competitive and open-loop equilibria — both of which are
+   in this directory, hand-derived, and validated at the `validated` tier.
+
+Rule 2 of this document applies with particular force here. If a future correction moves
+one of these numbers, it is investigated and recorded, never nudged: the closed-loop values
+are the ones most likely to move and the least well anchored, and they are the reason
+`DECISIONS.md` D-0006 refuses to call either of them "the" equilibrium.

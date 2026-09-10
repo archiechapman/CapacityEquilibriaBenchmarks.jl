@@ -14,7 +14,7 @@ using CapacityEquilibria
 
 export MSData, MSIndex, MSPoint, MS_VARIANTS, PLAYER_P, PLAYER_B
 export load_ms_instance, check_assumptions, peak_segments
-export ms_lcp, ms_conditions, ms_unpack, ms_pack, load_ms_expected
+export ms_lcp, ms_lcp_arrays, ms_conditions, ms_unpack, ms_pack, load_ms_expected
 export investment_criterion_gap, pricing_efficiency_gap, production_efficiency_holds,
        segment_type
 export enumerate_lcp_solutions, is_monotone, strictly_complementary, basis_nonsingular

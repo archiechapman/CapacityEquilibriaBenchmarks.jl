@@ -83,6 +83,25 @@ Emit the upstream-facing test file rather than writing it by hand. CCOpt.jl's ma
 
 The deliverable from this phase is a self-contained test file plus a short PR description that frames the contribution honestly: a small, hand-verified, dual-sourced-ground-truth regression case, offered as a correctness check rather than a demonstration of scale. If the maintainers aren't interested in taking it upstream, it still stands on its own as a validation artifact for the rest of this plan and for anything built later on CCOpt.jl in the NEM work.
 
+## Corrections found while executing Phase 2
+
+*Same convention as the Phase 0 and Phase 1 corrections: the plan above is left as written, and what was
+found is set beside it, citing the ledger entry that checked it.*
+
+| The plan says | Phase 2 found |
+|---|---|
+| "Solve the resulting MPCC with both of CCOpt.jl's documented methods, `RelaxationSolver` and `PenaltySolver`" | Only the relaxation method is reachable from JuMP: CCOpt v0.1.0's MathOptInterface extension builds a `RelaxationSolver` unconditionally, with no attribute selecting the other (engine F-0004). The penalty method needed a second route — an `MPCCModel` built directly on a hand-written `NLPModel` — which is now in the engine and reaches both (engine F-0006, benchmarks F-0008) |
+| "check the result against both the PATH solve from Phase 1 and the paper's published numbers" | There are no published numbers, in either edition (F-0001, F-0002). The comparison is against the hand derivation and the enumeration, as Phase 1 already had to read it (D-0004). CCOpt versus PATH remains a solver-agreement question and is reported as one |
+| "a self-contained file, with the data inlined and no imports beyond JuMP, NLPModels and CCOpt.jl itself" | JuMP is the wrong dependency to reach for: CCOpt.jl's `test/Project.toml` does not carry it, so a file importing it could not run in their suite. The emitted file imports NLPModels, MPCCModels, MadNLP, CCOpt and Test — all already theirs — and wraps itself in a module, as their own `test/MOI_wrapper.jl` does (D-0001, note) |
+| "a script that reads the shared `data/` transcription and the Phase 1 model definition and writes the standalone file" | Stronger than that in the end: the script retypes nothing. It splices the model assembly, the NLP and the residual oracle verbatim out of the sources this repository tests, between `# emit:<tag>` markers, and inlines the data. The emitted file therefore cannot disagree with the model, and the round-trip check demands exact equality rather than agreement within a tolerance (F-0009) |
+| "read through the repository's current open issues and pull requests at this point" | Done on 2026-09-10: zero open issues, one open pull request ("Add CCOpt logo"). There is no CONTRIBUTING file and no issue template. Nothing to coordinate with, and nothing that suggests a test contribution is unwelcome — but also nobody visibly asking for one |
+| — (not mentioned) | Reading their MathOptInterface extension turned up a second, unrelated defect: `MOI.RawStatusString` throws, because it reads a field the relaxation solver does not have. Cosmetic here, one word to fix there, and worth reporting with the test case (engine F-0007) |
+| — (not mentioned) | The plan treats "CCOpt versus PATH" as one comparison. It is two: the method, and the bridge stack that carries a JuMP model to it. Running the relaxation method both ways separates them, and the bridges turn out to change nothing — the same iterate to ten digits on all four cases (F-0008) |
+
+The phase's deliverable exists and passes. What the plan does not say, and what remains true, is that offering
+it is a decision rather than a step: nobody upstream has asked for a test case, and the artifact is useful to
+this programme whether or not it is ever offered.
+
 ## Phase 3 — Closed-loop replication via diagonalization
 
 Implement the closed-loop model, in which each firm chooses both capacity and output anticipating rivals' capacities as fixed, making this an EPEC rather than a single complementarity problem. Solve it by diagonalization: fix all firms' capacities except one, solve that firm's own optimization (a well-posed NLP or, in this formulation, tractable directly via PATH as a smaller complementarity problem) for its best response, move to the next firm, and iterate over the full set of firms until capacities stop moving between rounds.

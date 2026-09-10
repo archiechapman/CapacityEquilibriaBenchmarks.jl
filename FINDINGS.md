@@ -4,8 +4,9 @@
 mean given the edition in hand. Solver behaviour as such is the engine's ledger
 (`CapacityEquilibria.jl/FINDINGS.md`); this one records model results.*
 
-*Last updated 2026-09-09. Produced against Julia 1.11.3, CCOpt v0.1.0, PATHSolver v1.7.9,
-JuMP v1.31.2, MathOptComplements v0.1.1, on Windows 11, with the Manifest committed alongside. Every number below traces
+*Last updated 2026-09-10. Produced against Julia 1.11.3, CCOpt v0.1.0, MadNLP v0.10.1,
+PATHSolver v1.7.9, JuMP v1.31.2, MathOptComplements v0.1.1, MPCCModels v0.1.0, on Windows 11,
+with the Manifest committed alongside. Every number below traces
 to a path named in its `evidence` field. The paper is cited by the printed page numbers of the
 May 2002 working paper; PDF page = printed page + 2.*
 
@@ -167,7 +168,67 @@ CCOpt's point independently, not inherited from PATH's; a solver that landed nea
 point but on the wrong side of a complementarity boundary would fail `segment_type` and
 the pricing-efficiency check even at a passing distance.
 
-What remains of Phase 2 is the penalty route and the emitted upstream file.
+What remained of Phase 2 at the time this entry was written — the penalty route and the
+emitted upstream file — is F-0008 and F-0009.
+
+
+## F-0008 — CCOpt's penalty method reaches all four equilibria too, and the MathOptComplements bridges change nothing.
+
+- tier: validated
+- status: settled
+- date: 2026-09-10
+- evidence: `scripts/report_agreement.jl` and `test/runtests.jl`, the four "derivation, enumeration, PATH and CCOpt agree" testsets and the eight property testsets, 303 passing — the penalty method's recomputed residuals are 7.9e-8 and 5.2e-8 on instance A and 3.6e-7 and 3.9e-7 on instance B, at distances 5.8e-8, 2.7e-8, 3.3e-8 and 3.1e-8 from the hand-derived points, against tolerances of 1e-6 and 1e-5 set before it was run; the relaxation method reached through the engine's direct `MPCCModel` route returns the same residual and the same distance as the JuMP route on every case, and the two points agree to better than 1e-10
+- boundary: CCOpt v0.1.0 over MadNLP v0.10.1, both methods at their default options apart from silence, on four linear complementarity problems of 14 and 18 variables, each with a unique strictly complementary solution — the easy case for either scheme, and the one that says least about a solver; the bridge-innocence claim covers only what these problems ask the bridges to do, which is to lift an affine `[F; x]` pairing over nonnegative variables, and would have to be re-established for free variables or a nonlinear map; the penalty method's residuals run two to five times the relaxation method's and both are two to three orders behind PATH, which is the number to watch if a tolerance is ever loosened; the failure mode is a case where the two methods agree with each other and both are wrong, which nothing here would catch and which is why the hand derivation and the enumeration remain the oracles
+- supersedes: none — extends F-0007 from one CCOpt method to both, and from two routes to four
+
+Phase 2's remaining solver question, and the answer is the same as F-0007's: on four
+problems with known answers, both of CCOpt's documented methods reach them. That is a
+correctness regression result and not a demonstration of scale, which is how the plan asks
+for it to be framed.
+
+Two things are worth separating out. First, **the bridges are innocent.** `:ccopt` and
+`:ccopt_relaxation` are one method on one problem, reached with and without the
+MathOptComplements bridge stack, and they return the same iterate to ten digits on all four
+cases. Whatever CCOpt does here, it does to the problem it was meant to be given, and the
+JuMP-route results in F-0007 do not need re-reading as results about the bridges. Second,
+**the property checks are run on the penalty point too**, independently rather than
+inherited: production and pricing efficiency, the investment criterion, Theorem 1, Lemmas 5,
+11 and 12 and Corollary 1 are each recomputed from whatever point the penalty method
+returned. A solver landing near the right point but on the wrong side of a complementarity
+boundary would fail `segment_type` and the pricing-efficiency check at a passing distance,
+and none does.
+
+The penalty method is slightly the less accurate of the two on every case, by a factor of
+two to five in the residual. On these problems that is a remark, not a finding: both sit
+hundreds of times inside a tolerance fixed before either ran.
+
+## F-0009 — The upstream test file is generated from the same sources the tests validate, and re-running it reproduces the in-repo model exactly.
+
+- tier: validated
+- status: settled
+- date: 2026-09-10
+- evidence: `scripts/emit_upstream_test.jl` writes `upstream/test_murphy_smeers_lcp.jl`; `test/runtests.jl`, testset "the emitted upstream file is the same model, and still solves it", which includes the emitted file — running its own 24 assertions against both CCOpt methods inside this suite — and then checks, for each of the four cases, that the matrices its inlined parameters build are `==` to the in-repo `ms_lcp` matrices, that its inlined equilibrium is `==` to `load_ms_expected`, that its inlined tolerance is the instance's own, and that the residual oracle travelling with it returns the same number as the engine's; `generated.toml` and `ci/gates/check_stale_generated.py`, whose baseline covers `data/`, `src/murphy_smeers.jl`, the emitter and the two engine files it splices, and which was confirmed to fail on an edit to the engine file across the repository boundary
+- boundary: equality of the matrices, not agreement to a tolerance, which is achievable only because the emitted file's parameters are the same Float64 literals and its assembly is the same code — a future emitter that rounded a parameter for readability would break this check, and should; the round trip establishes that the emitted copy *is* the validated model, not that the validated model is right, which is F-0004 to F-0008's job; the staleness gate compares hashes and so catches a source edited without regenerating, but cannot catch a source and an artifact edited to agree with each other, which is what "generated files are never hand-edited" is for; the failure mode is a reader who takes the emitted file for a replication of the paper's numbers, which its header is written to prevent
+- supersedes: none
+
+D-0001 chose a generator over a hand-written file to stop the copy CCOpt.jl's maintainers
+might hold from drifting away from the model that validated it. The mechanism is stronger
+than that decision anticipated: the emitted file contains no second transcription of
+anything. The model assembly is copied verbatim out of `src/murphy_smeers.jl` between
+markers, the vertical-form NLP and the residual oracle verbatim out of the engine, and the
+data inlined from `data/`. What the emitter authors is the scaffolding — the imports, the
+case table, the testsets and the header — and nothing that could be wrong about the
+economics or the arithmetic.
+
+That is why the round-trip check can demand exact equality rather than agreement within a
+tolerance, and why the check is worth having: it fails the moment the emitted copy stops
+being the same object as the model, rather than the moment the two disagree by enough to
+notice.
+
+The header of the emitted file says, in its own words, that the instances are constructed,
+that neither edition of the paper publishes numbers, and that both problems are the easy
+case of a unique strictly complementary solution. A reviewer who reads only that file
+should not be able to come away believing this is a replication of published results.
 
 ---
 
@@ -179,11 +240,14 @@ What remains of Phase 2 is the penalty route and the emitted upstream file.
 - **Nothing about the closed-loop model.** Phase 3. Its conditions are not an LCP (F-0003)
   and its equilibrium is not unique in general (paper §7); F-0004 and F-0005 say nothing
   about it beyond the ordering Theorem 7 states.
-- **Nothing about CCOpt.jl's penalty method.** Only the relaxation method is reachable
-  through the JuMP path (engine F-0004); F-0007 covers that method and no other.
+- **Nothing about either CCOpt method on a problem it might fail.** Both are now covered
+  (F-0008), on four problems chosen because their answers are known — which is the same
+  reason they are easy.
 - **Nothing about CCOpt.jl on a hard case.** Both instances have a unique, strictly
-  complementary solution. Degenerate or multiple equilibria — the closed-loop case's
-  territory — have not been put to either solver.
+  complementary solution, and that is the whole of what has been put to either method.
+  Degenerate or multiple equilibria — the closed-loop case's territory — have not been.
+- **Nothing about the upstream file being wanted.** It is generated, self-contained and
+  passing (F-0009); no maintainer has been asked whether they want it.
 - **Nothing beyond two regime sets.** Between them the instances show Cournot types (a),
   (b), (c) and competitive types (a), (c), (d), (e). A peaker that does not invest
   (Theorem 1 allows it), a Cournot segment of type (d) or (e), or a tie at `S_p` are not
@@ -200,9 +264,16 @@ What remains of Phase 2 is the penalty route and the emitted upstream file.
 ## What remains
 
 1. ~~Resolve `CONFIRM(F-0002)`.~~ Done — the published article has no numerical example.
-2. Phase 2, the rest: CCOpt's penalty route through a directly built `MPCCModel` (engine
+2. ~~Phase 2, the rest: CCOpt's penalty route through a directly built `MPCCModel` (engine
    F-0004), checked against the JuMP route on all four cases; then the emitter and the
-   round-trip check for the upstream test file. The property checks and the enumeration
-   oracle apply as they are.
+   round-trip check for the upstream test file.~~ Done — F-0008 and F-0009. Phase 2's
+   deliverable, `upstream/test_murphy_smeers_lcp.jl` with the PR description beside it, is
+   built and has not been offered to anyone.
 3. ~~A second constructed instance.~~ Done — instance B (F-0006). Still uncovered: a peaker
    that does not invest, and a Cournot segment of type (d) or (e).
+4. Open the pull request against CCOpt.jl, or decide not to. The artifact stands on its own
+   as a validation case either way (the plan's own framing), and the engine's F-0007 — the
+   `RawStatusString` bug — is worth reporting with it.
+5. Phase 3: the closed-loop model. Its conditions are not an LCP (F-0003), so neither the
+   enumeration oracle nor `lcp_residual` carries over unchanged, and its equilibrium is not
+   unique in general.

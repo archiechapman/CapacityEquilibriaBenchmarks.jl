@@ -2,7 +2,7 @@
 
 julia_version = "1.11.3"
 manifest_format = "2.0"
-project_hash = "d282959c9b318d6ba96d2cb216aea5a756ce7826"
+project_hash = "55e7c2b5728eb4eed93b0697e34f1797db67bf12"
 
 [[deps.AMD]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse_jll"]
@@ -46,7 +46,7 @@ version = "0.1.0"
     NLPModelsJuMP = "792afdf1-32c1-5681-94e0-d7bf7a5df49e"
 
 [[deps.CapacityEquilibria]]
-deps = ["CCOpt", "JuMP", "LinearAlgebra", "MPCCModels", "MathOptComplements", "MathOptInterface", "NLPModels", "NLPModelsJuMP", "PATHSolver"]
+deps = ["CCOpt", "JuMP", "LinearAlgebra", "MPCCModels", "MadNLP", "MathOptComplements", "MathOptInterface", "NLPModels", "NLPModelsJuMP", "PATHSolver", "SparseArrays"]
 path = "../CapacityEquilibria.jl"
 uuid = "319ee36c-c5cc-40be-a95f-db79b5c1348c"
 version = "0.0.1"

@@ -8,19 +8,30 @@ CCOpt = "6689419a-93c1-455a-8ac6-77991ec4f86b"
 CapacityEquilibria = "319ee36c-c5cc-40be-a95f-db79b5c1348c"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MPCCModels = "cbaba3ef-cedb-4e5a-9903-71bbac24a74a"
+MadNLP = "2621e9c9-9eb4-46b1-8089-e8c72242dfb6"
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
+NLPModels = "a4795742-8479-5a88-8948-cc11e1c8c1a6"
 PATHSolver = "f5f7c340-0bb3-5c69-969a-41884d311d1b"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [sources]
 CapacityEquilibria = {path = "../CapacityEquilibria.jl"}
 
+# The four packages below the engine are here for one reason: `upstream/` is a standalone
+# file that imports them directly, and `test/runtests.jl` runs it. They are not used by
+# `src/`, which reaches CCOpt only through the engine.
 [compat]
 CCOpt = "0.1"
 JuMP = "1"
 LinearAlgebra = "1.11.0"
+MPCCModels = "0.1"
+MadNLP = "0.10"
 MathOptInterface = "1"
+NLPModels = "0.21, 0.22"
 PATHSolver = "1.7"
+SparseArrays = "1.11.0"
 julia = "1.10"
 
 [extras]

@@ -17,7 +17,8 @@ regression test offered to CCOpt.jl, is generated into `upstream/` with the pull
 description beside it; it has not been offered to anyone yet. Phase 3, the closed-loop
 model, is under way: it is transcribed, both instances' closed-loop equilibria are found by
 a solver-free enumeration and checked against every comparative result the paper states,
-and two further roots of the equilibrium condition are shown not to be equilibria at all.
+two further roots of the equilibrium condition are shown not to be equilibria at all, and
+diagonalization reaches the same point from every start tried.
 
 **One thing to know before reading any number here.** The edition of the paper in hand — the
 May 2002 working paper — publishes no numerical example, so there were no tables to
@@ -41,7 +42,7 @@ against a combined-cycle plant over four quarter-year load blocks.
 | `test/` | The validation: both instances, both models, both solvers, each property cited to its page. |
 | `docs/` | The plan and its corrections, the derivations of both instances, and the replication report. |
 | `scripts/` | `report_agreement.jl` prints the solver-agreement table; `emit_upstream_test.jl` writes the upstream file; `negative_controls.jl` breaks a copy of it eight ways and checks the tests notice; `check_upstream_portable.jl` runs it in a CCOpt-only environment; `share_upstream.sh` publishes it as a gist. |
-| `upstream/` | `test_murphy_smeers_lcp.jl`, the test file offered to CCOpt.jl — generated, so edit the emitter and never the file — beside `ISSUE.md` and `PULL_REQUEST.md`, the hand-written note and description that would accompany it. Nothing has been posted. |
+| `upstream/` | Two generated artifacts — `test_murphy_smeers_lcp.jl`, the open-loop regression test, and `closed_loop_demonstration.jl`, which shows the first-order conditions admitting roots that are not equilibria — beside the hand-written notes that would accompany them: `ISSUE.md`, `PULL_REQUEST.md` and `NOTE_first_order_conditions.md`. Edit the emitters, never the files. Nothing has been posted. |
 
 ## Getting set up
 
@@ -59,7 +60,7 @@ julia --project -e 'using Pkg; Pkg.test()'
 ```
 
 About three minutes after precompilation, most of it the enumeration of instance B's 2¹⁸
-patterns; 439 tests, including the 24 the emitted upstream file runs for itself. No PATH
+patterns; 567 tests (617 with RUN_CLOSED_LOOP=true), including the 24 the emitted upstream file runs for itself. No PATH
 licence is needed at 14 and 18 variables, though the engine's README explains how to set
 one before it is.
 

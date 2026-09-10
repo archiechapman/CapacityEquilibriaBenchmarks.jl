@@ -388,6 +388,91 @@ identity, its boundary, and a `valid` flag are now stated; the earlier version h
 checked only at points where both players invest, which is exactly where it happens to be
 right. The primary transcription, built term by term from Lemma 7, was correct throughout.
 
+
+## F-0014 — Diagonalization reaches the same closed-loop equilibria from every start tried, including from the roots of (16) that are not equilibria — and that robustness is a property of the best response, not of the loop.
+
+- tier: validated
+- status: settled
+- date: 2026-09-10
+- evidence: `src/diagonalize_closed_loop.jl`; `test/runtests.jl`, testset "diagonalization reaches the same point" for the always-on part and "diagonalization from many starts and both orders" behind `RUN_CLOSED_LOOP=true` — 28 runs across two instances, two player orderings and seven starting points each, every one converging to the equilibrium already found by enumeration, none cycling and none hitting the iteration limit; started exactly at each of the four corner roots of (16) identified in F-0013, the loop leaves them and converges in 13 or 14 rounds; a single run costs 10.7 s on instance A and 17.6 s on instance B, a single best response 0.04 s and 0.67 s; step sizes decay geometrically after the first round, `7.5, 2.67, 0.139, 0.023, 0.0039, 0.00064` on instance A from the origin
+- boundary: two constructed instances, two players, seven starting points and both of the two possible orderings, so "every start tried" is 28 runs and not a proof of global convergence; the best response is exact only up to the second-stage pattern enumeration being complete, which is `2^(4S)` and therefore the same wall as everywhere else in Phase 3; **the cycling detector has never fired**, because nothing in these instances cycles, so it is code that has not been seen to work and should be treated as untested until an instance exercises it; convergence is linear, and the tolerance is on the step rather than on distance to a fixed point, which is the usual overstatement in a convergence claim and is why the trajectory is returned rather than just the endpoint
+- supersedes: none
+
+The plan asks for diagonalization and warns that it "is known to be sensitive to firm
+ordering and starting point and does not always converge cleanly". On these two instances it
+is not sensitive to either. That is worth explaining rather than celebrating, because the
+explanation says where the fragility actually lives.
+
+**The corner roots are not fixed points of this loop.** F-0013 found that equation (16) has
+three roots on each instance and that two are corners at which one player invests nothing.
+Those corners are fixed points of the *first-order condition*. They are not fixed points of
+a best-response map, because at a corner the rival's global best response is somewhere else
+— which is precisely what the deviation gaps of 46, 32, 322 and 188 measured. Started at
+one, diagonalization moves on the first round and converges to the equilibrium.
+
+**So the subroutine carries the risk, not the iteration.** The best response here is
+computed globally and exactly: for a fixed rival capacity each second-stage pattern makes
+the objective quadratic on an interval, and the minimum over all such pieces is the global
+minimum. Had it instead been a local solve from the current iterate — the obvious
+implementation, and the one a solver-based approach invites — a corner would have been a
+fixed point of the whole scheme, and diagonalization would have reported it as an
+equilibrium with a clean convergence history. Nothing in the loop would have noticed.
+
+That is the finding worth carrying into Phase 4. The plan proposes stacking every player's
+first-order conditions into one monolithic MPCC for CCOpt.jl to solve. Such a system has
+all three roots on each instance, and a solver that finds one is behaving correctly on the
+problem it was given. Whatever is offered upstream has to carry the deviation check with it,
+or say plainly that its solution set is larger than its equilibrium set.
+
+Two smaller observations. Convergence is linear with a ratio near 1/6 on both instances
+after the first couple of rounds, so the loop is cheap in iterations and expensive per
+iteration. And the endpoint agrees with the enumeration to better than 1e-6 on both
+instances, which is two independent routes to the same point: the enumeration never solves
+an optimisation, and the diagonalization never enumerates first-stage patterns.
+
+
+## F-0015 — The roots of (16) that are not equilibria are exactly the points where the second stage is degenerate, and there the recomputed residual stops measuring accuracy.
+
+- tier: validated
+- status: settled
+- date: 2026-09-11
+- evidence: `upstream/closed_loop_demonstration.jl` and its round-trip testset, 82 assertions passing in a project holding only CCOpt's declared test dependencies — at each of the four corner roots the second-stage LCP has three or four biactive complementarity pairs, is not strictly complementary, and its basis is singular, while at the two equilibria it has none and is strictly complementary; adding 1, 1e3 and 1e5 to the non-investing player's capacity duals, with its output snapped exactly onto its bound, leaves the recomputed residual unchanged, so the dual is an unbounded ray; PATH returns the vertex of that ray (max dual 11.5, 75.2, 84) and both CCOpt methods walk out to about 1e5; the primal agrees across all three solvers to between 2.5e-9 and 1.0e-8 at every corner, as do the regimes and the value of (16); the penalty method's recomputed residual at the corners is 9.8e-4 and 1.0e-3 against 4.7e-8 and 3.1e-7 at the equilibria, while the relaxation method's stays near 1e-7 throughout
+- boundary: two constructed instances and four corner points, all of the same kind — one player holding no capacity — so this says nothing about degeneracy arising any other way; the 1e5 figure is where these solvers happened to stop on this problem at their default options and is not a property of either method; the claim that the primal is unaffected rests on the primal agreeing with PATH, which is itself only the vertex solution, so what is established is agreement and not correctness of the primal independent of PATH; `enumerate_lcp_solutions` reports one solution at these points and the solution set is a ray, which is consistent with its documented behaviour of skipping rank-deficient bases but means its count is a lower bound there and should not be read as uniqueness
+- supersedes: none
+
+Found by accident, and by an assertion failing rather than passing. The demonstration
+written for `upstream/` asserted that both CCOpt methods reach the second stage to 1e-5 at
+every one of the six points. That is false at the four corners, and chasing why produced a
+better result than the one it was written to show.
+
+**The two phenomena coincide.** F-0013 found that (16) has three roots per instance and
+that two are corners where one player invests nothing. Those corners are exactly the points
+where the second-stage problem is degenerate. The reason is the same fact in both cases: a
+player holding no capacity produces nothing and its capacity constraint binds at zero, so
+its own first-order term vanishes *and* any sufficiently large shadow price satisfies the
+conditions. The economics and the numerics degenerate together.
+
+**The residual stops being an accuracy measure.** The penalty method's 9.8e-4 at a corner is
+not an error of that size in anything meaningful. It is the product of a dual of order 1e5,
+which the problem does not determine, with a primal error of order 1e-8, which is the actual
+accuracy. Snapping the primal onto its bound collapses the residual. So on this class of
+problem the pass criterion this whole programme rests on — recompute the residual from the
+returned point and threshold it (engine D-0002) — reports a number that says more about
+where along the ray a solver stopped than about whether it solved anything.
+
+That is worth stating plainly because it is a limit of this repository's own method, not
+just of a solver's. The programme's answer to "did the solver work" has been the recomputed
+residual since Phase 0, and here is a case where it is the wrong question. What survived
+was the primal: outputs, prices, regimes and the value of (16) agree across PATH and both
+CCOpt methods everywhere, and it is that agreement, not the residual, that carries the
+result.
+
+**It is also the hard case the open-loop work explicitly lacked.** F-0007's boundary said
+that both instances there are strictly complementary with a unique solution, "the easy case
+for a relaxation scheme", and that nothing had been put to either method on a degenerate
+problem. This is that problem, it arrived from the model rather than being constructed, and
+the two methods behave differently on it in a way their termination status does not show.
+
 ---
 
 ## What this does not establish
@@ -401,12 +486,14 @@ right. The primary transcription, built term by term from Lemma 7, was correct t
 - **Nothing about either CCOpt method on a problem it might fail.** Both are now covered
   (F-0008), on four problems chosen because their answers are known — which is the same
   reason they are easy.
-- **Nothing about CCOpt.jl on a hard case.** Both instances have a unique, strictly
-  complementary solution, and that is the whole of what has been put to either method.
-  Degenerate or multiple equilibria — the closed-loop case's territory — have not been.
-- **Nothing about the upstream file being wanted.** It is generated, self-contained,
-  passing, and portable to CCOpt's own test environment (F-0009, F-0011). No maintainer
-  has been asked whether they want it, and nothing has been posted anywhere.
+- **Little about CCOpt.jl on a hard case, but no longer nothing.** The open-loop problems
+  are all strictly complementary with unique solutions. The closed-loop corners are
+  degenerate with an unbounded dual ray, and F-0015 records what both methods do there.
+  That is four points of one kind, not a study.
+- **Nothing about either upstream artifact being wanted.** Both are generated,
+  self-contained, passing and portable to CCOpt's own test environment (F-0009, F-0011,
+  F-0015). No maintainer has been asked whether they want them, and nothing has been
+  posted anywhere.
 - **Nothing beyond two regime sets.** Between them the instances show Cournot types (a),
   (b), (c) and competitive types (a), (c), (d), (e). A peaker that does not invest
   (Theorem 1 allows it), a Cournot segment of type (d) or (e), or a tie at `S_p` are not
@@ -441,5 +528,6 @@ right. The primary transcription, built term by term from Lemma 7, was correct t
    equilibria are found and checked against every comparative result the paper states
    (F-0013), and D-0006 records what validation means here. What remains: an instance whose
    equilibrium sits on a kink, which the enumeration would miss and which would test the
-   boundary F-0013 states; diagonalization, which the plan asks for and which has not been
-   built because enumeration answered the question first; and Phase 4's monolithic MPCC.
+   boundary F-0013 states; an instance whose diagonalization cycles, which would exercise a
+   detector that has never fired (F-0014); and Phase 4's monolithic MPCC, which F-0014
+   argues cannot be offered upstream without the deviation check attached.

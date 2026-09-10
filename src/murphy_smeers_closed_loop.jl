@@ -52,7 +52,172 @@
 # second stage, the derivative table, and the residual of (16) — the pieces an equilibrium
 # search needs and which can each be checked on their own.
 
-# --- the second stage ------------------------------------------------------------------
+
+# --- the closed-loop core, spliced verbatim into upstream/ --------------------------------
+#
+# Everything between the markers takes plain numbers and depends on nothing else in this
+# package: no `MSData`, no `MSPoint`, no constant, no import. That is what lets
+# `scripts/emit_closed_loop_demo.jl` copy it into a self-contained file rather than
+# reimplementing it there (DECISIONS.md D-0001). The `MSData` methods further down are
+# wrappers over these and add nothing but unpacking.
+#
+# emit:closed_loop_core:begin
+
+"""
+    ms_second_stage_arrays(S, beta, alpha, K, nu, x) -> (M, q)
+
+The short-run Cournot equilibrium at fixed capacities `x`, as the LCP
+`0 <= w  perp  Mw + q >= 0` in `w = (y_p^1..S, y_b^1..S, lambda_p^1..S, lambda_b^1..S)`.
+Equations (4) of Murphy and Smeers, restated on p.24 of the May 2002 working paper:
+
+    0 <= y_i^s  perp  -alpha^s + 2 beta y_i^s + beta y_-i^s + nu_i + lambda_i^s >= 0
+    0 <= lambda_i^s  perp  x_i - y_i^s >= 0
+
+Player 1 is the peaking plant, player 2 the base-load plant. Segments do not interact once
+`x` is fixed, so `M` is block diagonal with one 4x4 block per segment. Lemma 2, p.19: the
+solution is unique for every `x`.
+
+This is the open-loop Cournot model's own `y` and `lambda` rows with `x` moved out of the
+variables and into `q`; the two models share their entire second stage.
+"""
+function ms_second_stage_arrays(S::Integer, beta::Real, alpha::AbstractVector,
+                                K::AbstractVector, nu::AbstractVector, x::AbstractVector)
+    length(alpha) == S || throw(DimensionMismatch("alpha has $(length(alpha)) entries but S = $S"))
+    length(x) == 2 || throw(DimensionMismatch("x has length $(length(x)), expected 2"))
+    iy(i, s) = (i - 1) * S + s
+    il(i, s) = 2 * S + (i - 1) * S + s
+    n = 4 * S
+    M = zeros(n, n)
+    q = zeros(n)
+    for i in 1:2, s in 1:S
+        r = iy(i, s)
+        q[r] = -alpha[s] + nu[i]
+        M[r, iy(i, s)] = 2 * beta                 # Cournot: the player sees its own effect
+        M[r, iy(3 - i, s)] = beta
+        M[r, il(i, s)] = 1.0
+        r = il(i, s)
+        q[r] = x[i]
+        M[r, iy(i, s)] = -1.0
+    end
+    return M, q
+end
+
+"""
+    ms_regime(S, x, y; tol) -> (types, roles)
+
+Each segment's regime in the paper's five-way partition (13), p.22, and the player that
+statement of the case singles out as `i`.
+
+  - `:a` both at capacity, `:b` both strictly interior — symmetric, role `0`
+  - `:c` one at capacity and one interior — role is the player at capacity
+  - `:d` one idle and one interior, `:e` one idle and one at capacity — role is the idle one
+
+Returns `:other` for a pattern outside the five, such as both players idle, for which
+Lemma 7 gives no derivative.
+"""
+function ms_regime(S::Integer, x::AbstractVector, y::AbstractMatrix; tol = 1e-7)
+    types = Vector{Symbol}(undef, S)
+    roles = Vector{Int}(undef, S)
+    for s in 1:S
+        st = map(1:2) do i
+            y[i, s] <= tol ? :idle : (abs(x[i] - y[i, s]) <= tol ? :capacity : :interior)
+        end
+        p, b = st[1], st[2]
+        if (p, b) == (:capacity, :capacity)
+            types[s], roles[s] = :a, 0
+        elseif (p, b) == (:interior, :interior)
+            types[s], roles[s] = :b, 0
+        elseif p === :capacity && b === :interior
+            types[s], roles[s] = :c, 1
+        elseif b === :capacity && p === :interior
+            types[s], roles[s] = :c, 2
+        elseif p === :idle && b === :interior
+            types[s], roles[s] = :d, 1
+        elseif b === :idle && p === :interior
+            types[s], roles[s] = :d, 2
+        elseif p === :idle && b === :capacity
+            types[s], roles[s] = :e, 1
+        elseif b === :idle && p === :capacity
+            types[s], roles[s] = :e, 2
+        else
+            types[s], roles[s] = :other, 0
+        end
+    end
+    return types, roles
+end
+
+"""
+    ms_regime_jacobian(t, i) -> Matrix
+
+`B[i, j] = d y_j / d x_i` at the second-stage equilibrium, from Lemma 7 (14), p.22. It is
+piecewise constant: the regime is the only thing it depends on.
+
+| regime | derivative |
+|---|---|
+| (a) both at capacity | `B_i y_i = 1`, `B_i y_-i = 0`, both `i` |
+| (b) both interior | all zero |
+| (c) `i` at capacity, `-i` interior | `B_i y_i = 1`, `B_i y_-i = -1/2`, `B_-i y_. = 0` |
+| (d) `i` idle, `-i` interior | all zero |
+| (e) `i` idle, `-i` at capacity | `B_-i y_-i = 1`, everything else zero |
+
+This closed form is what makes the closed-loop conditions evaluable exactly. No automatic
+differentiation and no numerical derivative appears anywhere in the model.
+"""
+function ms_regime_jacobian(t::Symbol, i::Int)
+    B = zeros(2, 2)
+    if t === :a
+        B[1, 1] = 1.0
+        B[2, 2] = 1.0
+    elseif t === :c
+        B[i, i] = 1.0
+        B[i, 3 - i] = -0.5
+    elseif t === :e
+        B[3 - i, 3 - i] = 1.0
+    elseif t === :b || t === :d
+        # identically zero
+    else
+        throw(ArgumentError("regime $t is outside partition (13), p.22; Lemma 7 gives " *
+                            "no derivative for it"))
+    end
+    return B
+end
+
+"""
+    ms_closed_loop_xi(S, beta, alpha, K, nu, y, types, roles) -> Vector
+
+`xi = (xi_p, xi_b)` from equation (16), p.24, at a second-stage equilibrium `y`:
+
+    xi_i = K_i + sum_s [-alpha^s + 2 beta y_i^s + beta y_-i^s + nu_i] B_i y_i^s
+                + sum_s beta y_i^s B_i y_-i^s
+
+A closed-loop equilibrium at a point where the second-stage solution is differentiable
+satisfies `0 <= x_i  perp  xi_i >= 0`.
+
+**This is a first-order condition and not a characterisation of equilibrium.** The long-run
+objective is only piecewise convex (Lemma 13, p.31) and its marginal cost can jump downwards
+(Figure 4, p.32), so a capacity vector can satisfy this and still not be an equilibrium. On
+both instances used in this programme it has three roots and only one is an equilibrium.
+"""
+function ms_closed_loop_xi(S::Integer, beta::Real, alpha::AbstractVector,
+                           K::AbstractVector, nu::AbstractVector, y::AbstractMatrix,
+                           types::AbstractVector, roles::AbstractVector)
+    xi = zeros(2)
+    for i in 1:2
+        o = 3 - i
+        acc = K[i]
+        for s in 1:S
+            B = ms_regime_jacobian(types[s], roles[s])
+            marginal = -alpha[s] + 2 * beta * y[i, s] + beta * y[o, s] + nu[i]
+            acc += marginal * B[i, i] + beta * y[i, s] * B[i, o]
+        end
+        xi[i] = acc
+    end
+    return xi
+end
+
+# emit:closed_loop_core:end
+
+# --- the same things, as methods over this repository's own types --------------------------
 
 """
     MSSecondStageIndex
@@ -70,49 +235,22 @@ ix2_λ(ix::MSSecondStageIndex, i, s) = 2 * ix.S + (i - 1) * ix.S + s
 """
     ms_second_stage_lcp(data, x) -> (M, q, ix)
 
-The short-run Cournot equilibrium at fixed capacities `x`, as the LCP
-`0 ≤ w ⟂ Mw + q ≥ 0` in `w = (y, λ)`. Equations (4), restated on p.24:
-
-    0 ≤ y_i^s ⟂ −α^s + 2β y_i^s + β y_{−i}^s + ν_i + λ_i^s ≥ 0
-    0 ≤ λ_i^s ⟂ x_i − y_i^s ≥ 0
-
-The segments do not interact once `x` is fixed, so `M` is block diagonal with one 4×4
-block per segment; it is assembled whole anyway, because the engine's `lcp_residual` and
-the enumeration oracle both want the full system and `4S` is small.
-
-Lemma 2, p.19: this has a unique solution for every `x`. The map is the open-loop Cournot
-map with the capacity rows' `x_i` moved from a variable into `q`, which is why
-`test/runtests.jl` can check this assembly against `ms_lcp` rather than trusting it.
+[`ms_second_stage_arrays`](@ref) over an `MSData`, returning the index helper alongside.
 """
 function ms_second_stage_lcp(d::MSData, x::AbstractVector)
-    length(x) == 2 || throw(DimensionMismatch("x has length $(length(x)), expected 2"))
-    ix = MSSecondStageIndex(d.S)
-    n = length(ix)
-    M = zeros(n, n)
-    q = zeros(n)
-    for i in (PLAYER_P, PLAYER_B), s in 1:d.S
-        r = ix2_y(ix, i, s)
-        q[r] = -d.alpha[s] + d.nu[i]
-        M[r, ix2_y(ix, i, s)] = 2 * d.beta          # Cournot: the player sees its own effect
-        M[r, ix2_y(ix, other(i), s)] = d.beta
-        M[r, ix2_λ(ix, i, s)] = 1.0
-        r = ix2_λ(ix, i, s)
-        q[r] = x[i]
-        M[r, ix2_y(ix, i, s)] = -1.0
-    end
-    return M, q, ix
+    M, q = ms_second_stage_arrays(d.S, d.beta, d.alpha, d.K, d.nu, x)
+    return M, q, MSSecondStageIndex(d.S)
 end
 
 """
     ms_second_stage(data, x; backend = :path) -> MSPoint
 
-Solve the short-run equilibrium at capacities `x` and return it in the same `MSPoint`
-shape the open-loop models use, so that `segment_type`, `pricing_efficiency_gap` and the
-rest apply to it unchanged. `pt.x` is the `x` that was passed in, not a solved quantity.
+Solve the short-run equilibrium at capacities `x` and return it in the `MSPoint` shape the
+open-loop models use, so `segment_type` and the property checks apply unchanged. `pt.x` is
+the `x` that was passed in, not a solved quantity.
 
-The residual is *not* checked here. Callers judge the point with `lcp_residual` on the
-`(M, q)` this builds, which is the same contract as everywhere else in this programme
-(`DECISIONS.md`, engine D-0002).
+The residual is not checked here; callers judge the point with `lcp_residual` on the
+`(M, q)` this builds, as everywhere else in this programme (engine `DECISIONS.md` D-0002).
 """
 function ms_second_stage(d::MSData, x::AbstractVector; backend::Symbol = :path)
     M, q, ix = ms_second_stage_lcp(d, x)
@@ -124,131 +262,57 @@ function ms_second_stage(d::MSData, x::AbstractVector; backend::Symbol = :path)
     return MSPoint(collect(Float64.(x)), y, λ, price, demand)
 end
 
-# --- the sensitivity of the second stage to capacity, Lemma 7 ----------------------------
-
 """
     segment_role(data, pt, s; tol) -> (type, distinguished)
 
-The segment's regime type from partition (13), p.22, together with the player the paper's
-statement of that case singles out as `i`:
-
-  - `:c` — `i` is the player at capacity, the other is strictly interior
-  - `:d`, `:e` — `i` is the idle player
-  - `:a`, `:b` — symmetric in the two players, so `distinguished` is `0`
-
-`segment_type` gives the type alone and is unchanged; this adds the role, which Lemma 7
-needs because its `:c` and `:e` entries are not symmetric.
+[`ms_regime`](@ref) for one segment. `segment_type` gives the type alone and is unchanged;
+this adds the role, which Lemma 7 needs because its `:c` and `:e` entries are not symmetric.
 """
 function segment_role(d::MSData, pt::MSPoint, s::Int; tol = 1e-7)
-    t = segment_type(d, pt, s; tol = tol)
-    status(i) = pt.y[i, s] <= tol ? :idle :
-                abs(pt.x[i] - pt.y[i, s]) <= tol ? :capacity : :interior
-    if t === :c
-        return t, status(PLAYER_P) === :capacity ? PLAYER_P : PLAYER_B
-    elseif t === :d || t === :e
-        return t, status(PLAYER_P) === :idle ? PLAYER_P : PLAYER_B
-    elseif t === :a || t === :b
-        return t, 0
-    end
-    return t, 0
+    types, roles = ms_regime(d.S, pt.x, pt.y; tol = tol)
+    return types[s], roles[s]
 end
 
 """
     second_stage_jacobian(data, pt, s; tol) -> Matrix{Float64}
 
-`B[i, j] = ∂y_j^s/∂x_i` at the second-stage equilibrium, from Lemma 7 (14), p.22:
-
-| regime | derivative |
-|---|---|
-| (a) both at capacity | `B_i y_i = 1`, `B_i y_{−i} = 0`, both `i` |
-| (b) both interior | all zero |
-| (c) `i` at capacity, `−i` interior | `B_i y_i = 1`, `B_i y_{−i} = −1/2`, `B_{−i} y_· = 0` |
-| (d) `i` idle, `−i` interior | all zero |
-| (e) `i` idle, `−i` at capacity | `B_{−i} y_{−i} = 1`, everything else zero |
-
-Piecewise constant in `x`: the regime is the only thing it depends on. That is what makes
-the closed-loop conditions evaluable in closed form rather than by differentiating a solver
-(see the file header).
-
-Throws on a regime outside the paper's five, since (14) says nothing about one and a
-silently-zero derivative would be a wrong answer rather than a missing one.
+[`ms_regime_jacobian`](@ref) at the regime of segment `s`. Throws on a regime outside the
+paper's five, since a silently-zero derivative would be a wrong answer rather than a
+missing one.
 """
 function second_stage_jacobian(d::MSData, pt::MSPoint, s::Int; tol = 1e-7)
     t, i = segment_role(d, pt, s; tol = tol)
-    B = zeros(2, 2)
-    if t === :a
-        B[PLAYER_P, PLAYER_P] = 1.0
-        B[PLAYER_B, PLAYER_B] = 1.0
-    elseif t === :b || t === :d
-        # every derivative is zero
-    elseif t === :c
-        o = other(i)
-        B[i, i] = 1.0
-        B[i, o] = -0.5
-    elseif t === :e
-        o = other(i)          # `i` is idle, `o` is at capacity
-        B[o, o] = 1.0
-    else
-        throw(ArgumentError(
-            "segment $s is regime $t, which is outside the paper's partition (13), p.22; " *
-            "Lemma 7 gives no derivative for it"))
-    end
-    return B
+    return ms_regime_jacobian(t, i)
 end
-
-# --- the closed-loop first-stage conditions, equation (16) --------------------------------
 
 """
     ms_closed_loop_conditions(data, pt; tol) -> Vector{Float64}
 
-`ξ = (ξ_p, ξ_b)` from (16), p.24, evaluated at a second-stage equilibrium `pt`:
+[`ms_closed_loop_xi`](@ref) at a second-stage equilibrium `pt`, which must be the solution
+at its own `pt.x` — what [`ms_second_stage`](@ref) returns. Passing a point from elsewhere
+silently answers a different question.
 
-    ξ_i = K_i + Σ_s [−α^s + 2β y_i^s + β y_{−i}^s + ν_i] B_i y_i^s + Σ_s β y_i^s B_i y_{−i}^s
-
-A closed-loop equilibrium at a point where the `y_i^s(x)` are differentiable satisfies
-`0 ≤ x_i ⟂ ξ_i ≥ 0`. Two cautions the paper states and this function cannot enforce:
-(16) holds only at differentiable points (p.24), and an equilibrium need not exist or be
-unique (section 7). So a zero of this is a *candidate*, and the argument that it is the
-equilibrium has to be made separately.
-
-`pt` must be the second-stage solution at its own `pt.x`, which is what
-[`ms_second_stage`](@ref) returns. Passing a point from somewhere else silently answers a
-different question.
+Two cautions the paper states and this cannot enforce: (16) holds only at differentiable
+points (p.24), and an equilibrium need not exist or be unique (section 7). A zero of this
+is a *candidate*; `best_response_gap` is what decides (`FINDINGS.md` F-0013).
 """
 function ms_closed_loop_conditions(d::MSData, pt::MSPoint; tol = 1e-7)
-    ξ = zeros(2)
-    for i in (PLAYER_P, PLAYER_B)
-        acc = d.K[i]
-        for s in 1:d.S
-            B = second_stage_jacobian(d, pt, s; tol = tol)
-            o = other(i)
-            marginal = -d.alpha[s] + 2 * d.beta * pt.y[i, s] + d.beta * pt.y[o, s] + d.nu[i]
-            acc += marginal * B[i, i] + d.beta * pt.y[i, s] * B[i, o]
-        end
-        ξ[i] = acc
-    end
-    return ξ
+    types, roles = ms_regime(d.S, pt.x, pt.y; tol = tol)
+    return ms_closed_loop_xi(d.S, d.beta, d.alpha, d.K, d.nu, pt.y, types, roles)
 end
 
 """
     ms_closed_loop_residual(data, x; backend, tol) -> NamedTuple
 
-How badly capacities `x` fail to be a closed-loop equilibrium: solve the second stage at
-`x`, evaluate (16), and report the complementarity failure of `0 ≤ x_i ⟂ ξ_i ≥ 0` the same
-way `lcp_residual` does for an LCP.
+How badly capacities `x` fail to satisfy the closed-loop first-order conditions: solve the
+second stage at `x`, evaluate (16), and report the complementarity failure of
+`0 ≤ x_i ⟂ ξ_i ≥ 0` the way `lcp_residual` does for an LCP.
 
-Returns `ξ`, the second-stage point, and
+Returns `ξ`, the second-stage `point`, `primal`, `dual`, `complementarity`, `worst`, and
+`second_stage` — the recomputed residual of the second-stage LCP at its own solution, which
+is what says the `y` and `λ` this rests on are themselves a solution.
 
-  - `primal`: violation of `x ≥ 0`
-  - `dual`: violation of `ξ ≥ 0`
-  - `complementarity`: the largest `|x_i ξ_i|`
-  - `worst`: the maximum of the three
-  - `second_stage`: the recomputed residual of the second-stage LCP at its own solution,
-    which is what says the `y` and `λ` this was all built on are themselves a solution
-
-The engine's `lcp_residual` answers the second-stage half and nothing else; this is the
-first-stage oracle, and it is model-specific, which is why it lives here rather than in
-the engine (`docs/BOUNDARY.md`).
+A `worst` of zero does **not** mean `x` is an equilibrium. See F-0013.
 """
 function ms_closed_loop_residual(d::MSData, x::AbstractVector;
                                  backend::Symbol = :path, tol = 1e-7)

@@ -24,9 +24,12 @@ import Pkg
 import TOML
 
 const REPO = normpath(joinpath(@__DIR__, ".."))
-const EMITTED = joinpath(REPO, "upstream", "test_murphy_smeers_lcp.jl")
+const EMITTED = [joinpath(REPO, "upstream", "test_murphy_smeers_lcp.jl"),
+                 joinpath(REPO, "upstream", "closed_loop_demonstration.jl")]
 
-isfile(EMITTED) || error("no emitted file; run scripts/emit_upstream_test.jl first")
+for f in EMITTED
+    isfile(f) || error("no emitted file at $f; run the matching scripts/emit_*.jl first")
+end
 
 """Locate the installed CCOpt and read the dependency list of its own test project."""
 function ccopt_test_dependencies()
@@ -58,17 +61,20 @@ function emitted_imports(path)
 end
 
 deps, project_path = ccopt_test_dependencies()
-imports = emitted_imports(EMITTED)
-# CCOpt is absent from its own test project because it is the package under test.
-outside = setdiff(imports, vcat(deps, ["CCOpt"]))
-
 println("CCOpt's test project: ", project_path)
 println("  it declares:        ", join(deps, ", "))
-println("  the file imports:   ", join(imports, ", "))
-println("  outside that set:   ", isempty(outside) ? "none" : join(outside, ", "))
-isempty(outside) || error("the emitted file imports $(join(outside, ", ")), which CCOpt's " *
-                          "test environment does not carry — the offer in " *
-                          "upstream/PULL_REQUEST.md is no longer true")
+for f in EMITTED
+    imports = emitted_imports(f)
+    # CCOpt is absent from its own test project because it is the package under test.
+    outside = setdiff(imports, vcat(deps, ["CCOpt"]))
+    println("  ", basename(f))
+    println("    imports:          ", join(imports, ", "))
+    println("    outside that set: ", isempty(outside) ? "none" : join(outside, ", "))
+    isempty(outside) || error("$(basename(f)) imports $(join(outside, ", ")), which CCOpt's " *
+                              "test environment does not carry — the offer in " *
+                              "upstream/PULL_REQUEST.md and upstream/NOTE_first_order_conditions.md " *
+                              "is no longer true")
+end
 
 # --- build the throwaway project and run the file there -------------------------------------
 
@@ -85,17 +91,22 @@ build = """
 """
 run(pipeline(`$(Base.julia_cmd()) --startup-file=no -e $build`; stdout = devnull))
 
-target = joinpath(env, basename(EMITTED))
-cp(EMITTED, target)
-println("running the emitted file there, with nothing else on the load path\n")
-proc = run(ignorestatus(`$(Base.julia_cmd()) --startup-file=no --project=$env -e "include(raw\"$target\")"`))
+failures = 0
+for f in EMITTED
+    target = joinpath(env, basename(f))
+    cp(f, target; force = true)
+    println("\nrunning ", basename(f), " there, with nothing else on the load path\n")
+    proc = run(ignorestatus(`$(Base.julia_cmd()) --startup-file=no --project=$env -e "include(raw\"$target\")"`))
+    proc.exitcode == 0 || (failures += 1)
+end
 
 println()
-if proc.exitcode == 0
-    println("PASSED: the emitted file runs in an environment holding only CCOpt's own test")
-    println("dependencies, and imports nothing outside that set.")
+if failures == 0
+    println("PASSED: both emitted files run in an environment holding only CCOpt's own test")
+    println("dependencies, and import nothing outside that set.")
 else
-    println("FAILED with exit code $(proc.exitcode). The file is not portable to CCOpt's")
-    println("test environment as it stands, and upstream/PULL_REQUEST.md overstates it.")
+    println("FAILED: $failures of $(length(EMITTED)) emitted files did not run there, so what")
+    println("upstream/PULL_REQUEST.md and upstream/NOTE_first_order_conditions.md claim is")
+    println("no longer true.")
 end
-exit(proc.exitcode)
+exit(failures == 0 ? 0 : 1)

@@ -8,3 +8,10 @@ sources = ["data/", "src/murphy_smeers.jl", "scripts/emit_upstream_test.jl", "..
 regenerate = "julia --project scripts/emit_upstream_test.jl"
 source_hash = "7a76b5d8d913b4f0514c9fd16f3c49edb6fe84c7253e306792eeebc197ba773a"
 artifact_hash = "df9ad05842c29179df21aae9ffcafd36018075f76b05732e305e43c8a3c59993"
+
+[[artifact]]
+path = "upstream/closed_loop_demonstration.jl"
+sources = ["data/", "src/murphy_smeers_closed_loop.jl", "scripts/emit_closed_loop_demo.jl", "../CapacityEquilibria.jl/src/lcp_nlp.jl", "../CapacityEquilibria.jl/src/pairing.jl"]
+regenerate = "julia --project scripts/emit_closed_loop_demo.jl"
+source_hash = "187f2490daa281cce1d2fff7e33cc085afb980b94573f487a1bdbc97a682ef5b"
+artifact_hash = "37c1a162e36f33495623bfc09ef370db6510231f76e55061221400df1c5e279d"

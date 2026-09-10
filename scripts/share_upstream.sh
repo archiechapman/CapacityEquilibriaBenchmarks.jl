@@ -24,6 +24,13 @@ NOTE="$REPO/upstream/ISSUE.md"
 STATE="$REPO/upstream/.gist-id"
 DESC="Murphy-Smeers open-loop capacity equilibria: four small LCPs with independently known solutions, offered to CCOpt.jl"
 
+# The second artifact: the demonstration that the closed-loop first-order conditions have
+# roots that are not equilibria, and that those roots are exactly the degenerate ones.
+DEMO="$REPO/upstream/closed_loop_demonstration.jl"
+DEMO_NOTE="$REPO/upstream/NOTE_first_order_conditions.md"
+DEMO_STATE="$REPO/upstream/.gist-id-demo"
+DEMO_DESC="Three solutions, one equilibrium: a capacity game where the first-order conditions do not characterise the answer"
+
 PUBLISH=0
 [[ "${1:-}" == "--publish" ]] && PUBLISH=1
 
@@ -31,6 +38,8 @@ die() { echo "error: $*" >&2; exit 1; }
 
 [[ -f "$FILE" ]] || die "no emitted file; run: julia --project scripts/emit_upstream_test.jl"
 [[ -f "$NOTE" ]] || die "no note at upstream/ISSUE.md"
+[[ -f "$DEMO" ]] || die "no demonstration; run: julia --project scripts/emit_closed_loop_demo.jl"
+[[ -f "$DEMO_NOTE" ]] || die "no note at upstream/NOTE_first_order_conditions.md"
 command -v gh >/dev/null || die "gh is not installed"
 
 # Refuse to share a stale artifact. The gate compares the emitted file and its sources
@@ -51,48 +60,72 @@ echo
 if [[ $PUBLISH -eq 0 ]]; then
     echo "DRY RUN. With --publish this would:"
     if [[ -f "$STATE" ]]; then
-        echo "  update the existing gist $(cat "$STATE")"
+        echo "  update the existing gist $(cat "$STATE") (the open-loop test case)"
     else
-        echo "  create a new public gist from upstream/test_murphy_smeers_lcp.jl"
+        echo "  create a public gist from upstream/test_murphy_smeers_lcp.jl"
     fi
-    echo "  write its id to upstream/.gist-id"
-    echo "  print the raw URL and the gh command that posts upstream/ISSUE.md"
+    if [[ -f "$DEMO_STATE" ]]; then
+        echo "  update the existing gist $(cat "$DEMO_STATE") (the closed-loop demonstration)"
+    else
+        echo "  create a public gist from upstream/closed_loop_demonstration.jl"
+    fi
+    echo "  write their ids to upstream/.gist-id and upstream/.gist-id-demo"
+    echo "  print both raw URLs and the gh commands that post the two notes"
     exit 0
 fi
 
-if [[ -f "$STATE" ]]; then
-    GIST_ID="$(cat "$STATE")"
-    echo "updating gist $GIST_ID"
-    gh gist edit "$GIST_ID" --filename "test_murphy_smeers_lcp.jl" "$FILE"
-    GIST_URL="https://gist.github.com/$GIST_ID"
-else
-    echo "creating a public gist"
-    GIST_URL="$(gh gist create --public --desc "$DESC" "$FILE")"
-    GIST_ID="${GIST_URL##*/}"
-    printf '%s\n' "$GIST_ID" > "$STATE"
-    echo "gist id recorded in upstream/.gist-id"
-fi
+# publish_gist <file> <state-file> <description> -> sets GIST_URL and RAW_URL
+publish_gist() {
+    local file="$1" state="$2" desc="$3" id url
+    if [[ -f "$state" ]]; then
+        id="$(cat "$state")"
+        echo "updating gist $id"
+        gh gist edit "$id" --filename "$(basename "$file")" "$file"
+        url="https://gist.github.com/$id"
+    else
+        echo "creating a public gist for $(basename "$file")"
+        url="$(gh gist create --public --desc "$desc" "$file")"
+        id="${url##*/}"
+        printf '%s\n' "$id" > "$state"
+    fi
+    GIST_URL="$url"
+    RAW_URL="$(gh api "gists/$id" --jq ".files[\"$(basename "$file")\"].raw_url")"
+}
 
-RAW_URL="$(gh api "gists/$GIST_ID" --jq '.files["test_murphy_smeers_lcp.jl"].raw_url')"
+publish_gist "$FILE" "$STATE" "$DESC"
+TEST_GIST="$GIST_URL"; TEST_RAW="$RAW_URL"
+publish_gist "$DEMO" "$DEMO_STATE" "$DEMO_DESC"
+DEMO_GIST="$GIST_URL"; DEMO_RAW="$RAW_URL"
 
 echo
-echo "gist:  $GIST_URL"
-echo "raw:   $RAW_URL"
+echo "open-loop test case   gist: $TEST_GIST"
+echo "                      raw:  $TEST_RAW"
+echo "closed-loop demo      gist: $DEMO_GIST"
+echo "                      raw:  $DEMO_RAW"
 
 # Fill the placeholders in a copy of the note, ready to post. The note itself keeps its
 # placeholders so that it stays valid when the gist is recreated.
 OUT="$(mktemp -t ccopt-issue-XXXX.md)"
-sed -e "s|GIST_RAW_URL|$RAW_URL|g" -e "s|GIST_URL|$GIST_URL|g" "$NOTE" \
+sed -e "s|GIST_RAW_URL|$TEST_RAW|g" -e "s|GIST_URL|$TEST_GIST|g" "$NOTE" \
     | sed -n '/^\*\*Body\*\*$/,$p' | tail -n +2 > "$OUT"
 
+DEMO_OUT="$(mktemp -t ccopt-note-XXXX.md)"
+sed -e "s|GIST_RAW_URL|$DEMO_RAW|g" -e "s|GIST_URL|$DEMO_GIST|g" "$DEMO_NOTE" > "$DEMO_OUT"
+
 echo
-echo "The note, with the URLs filled in, is at:"
-echo "  $OUT"
+echo "The two notes, with the URLs filled in:"
+echo "  $OUT       (the offer of the open-loop test case)"
+echo "  $DEMO_OUT  (the first-order-conditions note)"
 echo
-echo "To post it (this is the only outward-facing step, and it is yours to run):"
+echo "To post them. These are the only outward-facing steps, and they are yours to run:"
 echo
 echo "  gh issue create --repo madsuite-org/CCOpt.jl \\"
 echo "    --title 'Offer: four small LCPs with independently known solutions, as a regression test' \\"
 echo "    --body-file '$OUT'"
 echo
-echo "Read $OUT first. It mentions @frapac by handle."
+echo "  gh issue create --repo madsuite-org/CCOpt.jl \\"
+echo "    --title 'When a solver is right and the answer is wrong: first-order conditions on a degenerate capacity game' \\"
+echo "    --body-file '$DEMO_OUT'"
+echo
+echo "Read both first. They mention @frapac by handle. Consider posting the offer first and"
+echo "the note second, or the note alone: it stands on its own and asks for less.

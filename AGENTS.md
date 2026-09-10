@@ -33,10 +33,12 @@ anything sent upstream.
   mismatch is investigated — settings, then units, then transcription, then the paper's own ambiguity — and
   the explanation is recorded as a finding. Tuning until the numbers agree destroys the only thing this repo
   is for.
-- The upstream-facing test files in `upstream/` are generated, never hand-edited. They are produced by
-  `scripts/emit_upstream_test.jl`, which inlines `data/` and splices the model itself out of
-  `src/murphy_smeers.jl` and out of the engine's `src/lcp_nlp.jl` and `src/pairing.jl` between
-  `# emit:<tag>:begin`/`:end` markers. Moving or deleting a marker stops the emitter rather than shrinking
+- The upstream-facing files in `upstream/` are generated, never hand-edited. There are two:
+  `scripts/emit_upstream_test.jl` writes the open-loop regression test and
+  `scripts/emit_closed_loop_demo.jl` writes the closed-loop demonstration. Both inline `data/` and
+  splice the model itself out of `src/murphy_smeers.jl`, `src/murphy_smeers_closed_loop.jl` and the
+  engine's `src/lcp_nlp.jl` and `src/pairing.jl` between `# emit:<tag>:begin`/`:end` markers. The
+  `.md` files beside them are hand-written and are not generated. Moving or deleting a marker stops the emitter rather than shrinking
   its output. The artifact is registered in `generated.toml` and round-trip checked against the in-repo model
   by `test/runtests.jl`. Editing the artifact instead of the generator is how the copy CCOpt.jl's maintainers
   hold stops matching the model that validated it. See `D-0001` and `FINDINGS.md` F-0009.
@@ -62,8 +64,8 @@ Short version, so the rule survives an unfollowed link:
 
 `julia --project -e 'using Pkg; Pkg.test()'` runs the open-loop replication against the published numbers.
 Set `RUN_CLOSED_LOOP=true` for the Phase 3 diagonalization suite (slow: one PATH solve per firm per
-iteration, and it records convergence behaviour, not just the endpoint). After any model or data change, run
-`julia --project scripts/emit_upstream_test.jl`, then
+iteration, and it records convergence behaviour, not just the endpoint). After any model or data change, run `julia --project scripts/emit_upstream_test.jl` and
+`julia --project scripts/emit_closed_loop_demo.jl`, then
 `python ci/gates/check_stale_generated.py . --write`, then the gates below.
 
 `julia --project scripts/negative_controls.jl` is the other half of the suite and is not run by

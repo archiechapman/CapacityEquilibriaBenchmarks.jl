@@ -28,10 +28,13 @@ export MSSecondStageIndex, ms_second_stage_lcp, ms_second_stage, segment_role,
        ms_closed_loop_conditions_decomposed
 export enumerate_closed_loop, closed_loop_affine
 export closed_loop_objective, best_response_gap
+export best_response, diagonalize
+export ms_second_stage_arrays, ms_regime, ms_regime_jacobian, ms_closed_loop_xi
 
 include("murphy_smeers.jl")
 include("murphy_smeers_closed_loop.jl")
 include("enumerate_lcp.jl")
 include("enumerate_closed_loop.jl")
+include("diagonalize_closed_loop.jl")
 
 end # module

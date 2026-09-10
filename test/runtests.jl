@@ -333,6 +333,39 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
                 end
             end
 
+            @testset "instance $(uppercase(tag)): diagonalization reaches the same point" begin
+                # The route the plan asks for, built after the enumeration had already found
+                # the answer, so that it can be compared against a known destination rather
+                # than trusted to define one.
+                #
+                # The best response is computed globally and exactly, by minimising the
+                # objective's quadratic piece on each second-stage pattern's validity
+                # interval. That matters more than the outer loop: F-0013's corner roots are
+                # fixed points of the *first-order condition*, and a local best response
+                # could sit at one. A global one cannot, because at those corners the rival
+                # strictly gains by moving.
+                z_cl = load_ms_expected(data, expected_path(tag), :closed_loop_cournot)
+                x_star = z_cl[1:2]
+
+                # The equilibrium is a fixed point of the best-response map, player by player.
+                for i in (PLAYER_P, PLAYER_B)
+                    @test best_response(data, i, x_star).x_i ≈ x_star[i] atol = 1e-6
+                end
+                fixed = diagonalize(data; x0 = x_star, maxiter = 5)
+                @test fixed.status === :converged
+                @test fixed.iterations == 1
+                @test fixed.x ≈ x_star atol = 1e-6
+
+                # And it is reached from a start that shares nothing with it.
+                run = diagonalize(data; x0 = [0.0, 0.0], maxiter = 60)
+                @test run.status === :converged
+                @test run.x ≈ x_star atol = 1e-6
+                @test length(run.trajectory) == run.iterations + 1
+                @test length(run.steps) == run.iterations
+                @test run.period == 0
+                @test issorted(run.steps[2:end]; rev = true)   # monotone decreasing after the first step
+            end
+
             @testset "instance $(uppercase(tag)): equation (16) and its decomposition agree" begin
                 # ms_closed_loop_conditions builds (16) term by term from Lemma 7's table;
                 # ms_closed_loop_conditions_decomposed writes the same quantity as the
@@ -375,6 +408,73 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
                 @test r.worst > tol          # not a closed-loop equilibrium
                 @test r.primal == 0.0        # the capacities themselves are feasible
             end
+        end
+    end
+
+    if get(ENV, "RUN_CLOSED_LOOP", "false") == "true"
+        @testset "Phase 3: diagonalization from many starts and both orders" begin
+            # Slow, and off by default: one exact global best response costs a full enumeration
+            # of second-stage patterns, and this runs dozens of them. `AGENTS.md` documents the
+            # switch. What it establishes is the plan's own request — convergence *behaviour*,
+            # not just an endpoint — and in particular that the corner roots of F-0013 are not
+            # fixed points of the diagonalization map when the best response is global.
+            for tag in INSTANCES
+                data = load_ms_instance(instance_path(tag))
+                x_star = load_ms_expected(data, expected_path(tag), :closed_loop_cournot)[1:2]
+                ol = ms_unpack(data, load_ms_expected(data, expected_path(tag),
+                                                      :open_loop_cournot))
+                en = enumerate_closed_loop(data)
+                corners = [x for x in en.solutions if best_response_gap(data, x).gap > 0]
+                @test length(corners) == 2
+
+                starts = vcat([[0.0, 0.0], [0.5, 0.5], [10.0, 10.0], ol.x], corners)
+                for order in ([PLAYER_P, PLAYER_B], [PLAYER_B, PLAYER_P]), x0 in starts
+                    run = diagonalize(data; x0 = x0, order = order, maxiter = 60)
+                    @test run.status === :converged
+                    @test run.x ≈ x_star atol = 1e-6
+                end
+            end
+        end
+    else
+        @info "RUN_CLOSED_LOOP is not set; skipping the multi-start diagonalization study. " *
+              "Set it to \"true\" to run it (about two minutes)."
+    end
+
+    @testset "the emitted demonstration is the same model, and still shows it" begin
+        # The second generated artifact (D-0001 again). Including it runs its own 82
+        # assertions against CCOpt inside this suite; the module it returns is then checked
+        # against the in-repo model, as for the open-loop file.
+        demo_path = joinpath(@__DIR__, "..", "upstream", "closed_loop_demonstration.jl")
+        @test isfile(demo_path)
+        demo = include(demo_path)
+
+        @test length(demo.CASES) == length(INSTANCES)
+        for tag in INSTANCES
+            data = load_ms_instance(instance_path(tag))
+            matching = [c for c in demo.CASES
+                        if c.S == data.S && c.beta == data.beta && c.alpha == data.alpha &&
+                           c.K == data.K && c.nu == data.nu]
+            @test length(matching) == 1
+            case = only(matching)
+
+            # The spliced assembly rebuilds the in-repo matrices exactly, at a capacity
+            # vector that is not one of the inlined ones.
+            probe = [1.25, 2.5]
+            Me, qe = demo.ms_second_stage_arrays(case.S, case.beta, case.alpha, case.K,
+                                                 case.nu, probe)
+            M, q, _ = ms_second_stage_lcp(data, probe)
+            @test Me == M
+            @test qe == q
+
+            # The inlined roots are the enumeration's, and the equilibrium flag agrees with
+            # a deviation check recomputed here rather than read from the file.
+            en = enumerate_closed_loop(data)
+            @test length(case.roots) == length(en.solutions)
+            for root in case.roots
+                @test any(x -> isapprox(x, collect(root.x); atol = 1e-6), en.solutions)
+                @test root.equilibrium == (best_response_gap(data, root.x).gap == 0.0)
+            end
+            @test count(r -> r.equilibrium, case.roots) == 1
         end
     end
 

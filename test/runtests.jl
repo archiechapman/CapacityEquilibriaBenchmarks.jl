@@ -14,8 +14,16 @@ import TOML
 # a point is checked below, cited by page of the May 2002 working paper.
 
 const DATADIR = joinpath(@__DIR__, "..", "data")
+const UPSTREAM = joinpath(@__DIR__, "..", "upstream", "test_murphy_smeers_lcp.jl")
 const INSTANCES = ["a", "b"]
-const BACKENDS = (:path, :ccopt)
+
+# Four routes to a solution, not two. `:path` and `:ccopt` go through JuMP — PATH via
+# `MOI.Complements`, CCOpt's relaxation method via the MathOptComplements bridges. The two
+# `:ccopt_*` backends go through an `MPCCModel` the engine builds directly, which is the
+# only way to reach CCOpt's penalty method (engine `FINDINGS.md` F-0004). Everything below
+# is asked of all four: the agreement with the derivation, and every property the paper
+# states.
+const BACKENDS = (:path, :ccopt, :ccopt_relaxation, :ccopt_penalty)
 
 instance_path(tag) = joinpath(DATADIR, "ms2002_instance_$tag.toml")
 expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
@@ -118,12 +126,16 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
 
                 # 4. Each backend reaches it, judged on a residual recomputed from its
                 #    point and on distance from the derived point — never on its status.
-                sols = Dict(b => solve_complementarity(() -> lcp_model(M, q), b) for b in BACKENDS)
+                sols = Dict(b => solve_complementarity(M, q, b) for b in BACKENDS)
                 for b in BACKENDS
                     @test lcp_residual(M, q, sols[b].x).worst < tol
                     @test sols[b].x ≈ z_hand atol = tol
+                    @test sols[b].x ≈ sols[:path].x atol = tol
                 end
-                @test sols[:path].x ≈ sols[:ccopt].x atol = tol
+                # The two relaxation runs are one method on one problem, reached with and
+                # without the bridges. A gap between them would mean the bridges changed
+                # the model, so they are held to far more than the case tolerance.
+                @test sols[:ccopt].x ≈ sols[:ccopt_relaxation].x atol = 1e-10
 
                 # 5. The regime is the one the derivation was done on.
                 pt = ms_unpack(data, sols[:path].x)
@@ -187,6 +199,54 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
                 # competition shuts them off there (production efficiency, above).
                 @test any(ol.y[PLAYER_P, s] > tol for s in Sp+1:data.S)
             end
+        end
+    end
+
+    @testset "the emitted upstream file is the same model, and still solves it" begin
+        # DECISIONS.md D-0001: what CCOpt.jl's maintainers would hold is generated from
+        # `data/` and from the model sources, never hand-written. This is the round trip
+        # the plan asks for — the emitted copy re-run and required to reproduce the same
+        # numbers as the in-repo model — and it is what stops the copy drifting once the
+        # model behind it is corrected. Staleness of the *file* is a separate question,
+        # answered by `ci/gates/check_stale_generated.py` against `generated.toml`.
+        @test isfile(UPSTREAM)
+
+        # Including it runs its own testsets against CCOpt, both methods, all four cases,
+        # inside this suite; the module it returns is then interrogated below.
+        emitted = include(UPSTREAM)
+
+        # The emitted set is exactly the in-repo set: every case here is matched by its
+        # parameters, not by its label, and every case there is accounted for. A case
+        # silently dropped from the emitter, or one carrying parameters that belong to no
+        # instance in `data/`, fails this rather than passing quietly.
+        @test length(emitted.CASES) == length(INSTANCES) * length(MS_VARIANTS)
+
+        for tag in INSTANCES, variant in MS_VARIANTS
+            data = load_ms_instance(instance_path(tag))
+            matching = [c for c in emitted.CASES
+                        if c.variant === variant && c.S == data.S && c.beta == data.beta &&
+                           c.alpha == data.alpha && c.K == data.K && c.nu == data.nu]
+            @test length(matching) == 1
+            case = only(matching)
+
+            M, q, _ = ms_lcp(data, variant)
+            z_hand = load_ms_expected(data, expected_path(tag), variant)
+
+            # The emitted file's own assembly, on its own inlined parameters, rebuilds the
+            # in-repo matrices exactly — not approximately. It can, because the assembly is
+            # this repository's assembly, spliced rather than retyped (F-0009).
+            Me, qe = emitted.ms_lcp_arrays(case.S, case.beta, case.alpha, case.K,
+                                           case.nu, case.variant)
+            @test Me == M
+            @test qe == q
+            # The inlined equilibrium is the derived one, and the inlined tolerance is the
+            # instance's own — a looser tolerance travelling upstream than the one used
+            # here would be exactly the drift this check exists to catch.
+            @test case.z == z_hand
+            @test case.tol == Float64(TOML.parsefile(expected_path(tag))["tolerance"])
+            # And the oracle that travels with the file agrees with the engine's.
+            @test emitted.lcp_residual(M, q, z_hand).worst ==
+                  lcp_residual(M, q, z_hand).worst
         end
     end
 end

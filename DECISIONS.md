@@ -35,6 +35,22 @@ Checked by `check_decision_log.py`. Ids are stable and never reused.
   emitted file grows past the point where a reviewer can read it in one sitting, which would mean the case
   is too large to be the regression test it is being offered as.
 
+Executed in Phase 2, with two departures from the wording above, both recorded rather than quietly made.
+
+**No JuMP.** This entry and the plan both say the emitted file may import "JuMP, NLPModels and CCOpt.jl".
+CCOpt.jl's own test environment does not carry JuMP, so a file importing it could not run in their suite
+without a new test dependency — the opposite of the point. The emitted file imports NLPModels, MPCCModels,
+MadNLP, CCOpt and Test, all of which their `test/Project.toml` already lists, and wraps itself in a module
+the way their `test/MOI_wrapper.jl` does. The engine's `D-0004` records the matching choice of a
+hand-written `NLPModel` over an `ADNLPModel`.
+
+**Nothing retyped.** The decision above anticipated a generator that *writes* a test file. What it writes
+instead is scaffolding around code copied verbatim: the model assembly out of `src/murphy_smeers.jl`, the
+vertical-form NLP and the residual oracle out of the engine, the parameters and equilibria out of `data/`.
+That is a stronger guarantee than the entry claims — the emitted file cannot disagree with the model,
+because it *is* the model — and it is what lets the round-trip check demand exact equality of the assembled
+matrices rather than agreement to a tolerance (`FINDINGS.md` F-0009).
+
 ## D-0002 — This repository goes public when its first case passes, not before and not after.
 
 - date: 2026-09-09
@@ -159,3 +175,17 @@ that does not contain it is the exact failure `data/PROVENANCE.md` exists to pre
   map — at which point the engine needs a nonlinear complementarity form and this decision
   covers only the open-loop cases; or CCOpt.jl's maintainers ask for the upstream test in
   JuMP form.
+
+The last clause of `revisit_if` half-happened in Phase 2, in a way worth recording. CCOpt.jl's
+maintainers were not asked for anything, but their test environment has no JuMP, so the upstream
+file could not have been offered in JuMP form even if this decision had gone the other way
+(D-0001, note). The explicit `(M, q)` choice made here is what made the emitted file possible at
+all: a matrix and a vector travel, a structured JuMP model does not.
+
+The mechanism moved slightly at the same time. `ms_lcp(data, variant)` no longer builds `M` and
+`q` itself; it unpacks `MSData` and delegates to `ms_lcp_arrays`, which takes the parameters as
+plain numbers, keeps the three index functions as closures, and is self-contained so that
+`scripts/emit_upstream_test.jl` can splice it verbatim. The decision is unchanged — one explicit
+assembly, checked against `ms_conditions` as a second transcription — and the agreement test
+still runs against the same code. What changed is that the code now has one more caller, in
+another repository's test suite, which is why it had to stop depending on `MSData` and `MSIndex`.

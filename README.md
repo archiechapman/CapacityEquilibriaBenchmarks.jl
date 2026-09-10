@@ -8,12 +8,14 @@ Two outputs, deliberately kept distinct: a replication study (does this Julia im
 reproduce the paper's numbers), and a validation contribution to CCOpt.jl (given a problem
 whose answer is known, does CCOpt.jl reach it).
 
-**Status: Phase 1 complete; Phase 2's solver-agreement half done.** Murphy and Smeers'
-competitive and open-loop Cournot models are built as linear complementarity problems,
-solved with both PATH and CCOpt.jl, and validated on two constructed instances against a
+**Status: Phases 1 and 2 complete.** Murphy and Smeers' competitive and open-loop Cournot
+models are built as linear complementarity problems, solved with PATH and with both of
+CCOpt.jl's methods over four routes, and validated on two constructed instances against a
 hand derivation, an exhaustive enumeration, and the paper's own theorems.
-`docs/REPLICATION_REPORT.md` is the synthesis. Not yet done from Phase 2: CCOpt's penalty
-route, and the emitted upstream test file.
+`docs/REPLICATION_REPORT.md` is the synthesis. Phase 2's deliverable, a self-contained
+regression test offered to CCOpt.jl, is generated into `upstream/` with the pull-request
+description beside it; it has not been offered to anyone yet. Next is Phase 3, the
+closed-loop model.
 
 **One thing to know before reading any number here.** The edition of the paper in hand — the
 May 2002 working paper — publishes no numerical example, so there were no tables to
@@ -35,8 +37,8 @@ against a combined-cycle plant over four quarter-year load blocks.
 | `src/enumerate_lcp.jl` | The solver-free oracle: every solution of a small LCP by enumerating its complementarity patterns, plus the monotonicity and strict-complementarity checks that make one solution provably the only one. |
 | `test/` | The validation: both instances, both models, both solvers, each property cited to its page. |
 | `docs/` | The plan and its corrections, the derivations of both instances, and the replication report. |
-| `scripts/` | `report_agreement.jl` prints the solver-agreement table. The emitters arrive with the rest of Phase 2. |
-| `upstream/` | Empty until Phase 2: the generated upstream test files. |
+| `scripts/` | `report_agreement.jl` prints the solver-agreement table; `emit_upstream_test.jl` writes the upstream file. |
+| `upstream/` | `test_murphy_smeers_lcp.jl`, the test file offered to CCOpt.jl — generated, so edit the emitter and never the file — beside `PULL_REQUEST.md`, the hand-written description that would accompany it. |
 
 ## Getting set up
 
@@ -54,8 +56,9 @@ julia --project -e 'using Pkg; Pkg.test()'
 ```
 
 About three minutes after precompilation, most of it the enumeration of instance B's 2¹⁸
-patterns. No PATH licence is needed at 14 and 18 variables, though the engine's README
-explains how to set one before it is.
+patterns; 303 tests, including the 24 the emitted upstream file runs for itself. No PATH
+licence is needed at 14 and 18 variables, though the engine's README explains how to set
+one before it is.
 
 `Manifest.toml` is committed here, unlike in the engine: this is a reproducible study rather
 than a library, and the resolved dependency versions are part of the result (`DECISIONS.md`,
@@ -79,11 +82,16 @@ using CapacityEquilibriaBenchmarks, CapacityEquilibria
 
 data = load_ms_instance("data/ms2002_instance_b.toml")   # checks the paper's assumptions
 M, q, ix = ms_lcp(data, :open_loop_cournot)              # or :competitive
-sol = solve_complementarity(() -> lcp_model(M, q), :path)   # or :ccopt
-lcp_residual(M, q, sol.x).worst                          # the pass criterion, not sol.status
+sol = solve_complementarity(M, q, :path)                  # or :ccopt, :ccopt_relaxation,
+lcp_residual(M, q, sol.x).worst                          #    :ccopt_penalty
 pt = ms_unpack(data, sol.x)                               # pt.x, pt.y, pt.λ, pt.price
 enumerate_lcp_solutions(M, q).solutions                   # every solution, no solver
 ```
+
+The four backends are PATH, CCOpt's relaxation method through JuMP, and CCOpt's relaxation
+and penalty methods through an `MPCCModel` the engine builds directly — the only route to
+the penalty method (`CapacityEquilibria.jl` `FINDINGS.md` F-0004). The pass criterion is
+always the recomputed residual, never the solver's own status.
 
 ## The rules that matter most
 
@@ -97,9 +105,13 @@ settings, then units, then transcription, then the paper's own ambiguity — and
 explanation is recorded as a finding. Tuning until the numbers agree destroys the only thing
 this repository is for.
 
-**`upstream/` is generated.** Edit the emitter in `scripts/`, never the artifact. The
-round-trip check is what stops the copy CCOpt.jl's maintainers hold from drifting away from
-the model that validated it.
+**`upstream/` is generated.** Edit the emitter in `scripts/`, never the artifact, and rerun
+`julia --project scripts/emit_upstream_test.jl` then
+`python ci/gates/check_stale_generated.py . --write` after any change to `data/`, to
+`src/murphy_smeers.jl`, or to the two engine files the emitter splices. The round-trip
+check in the test suite is what stops the copy CCOpt.jl's maintainers would hold from
+drifting away from the model that validated it; the staleness gate is what stops the file
+in this repository drifting from its own sources.
 
 ## Documents
 

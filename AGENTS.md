@@ -1,9 +1,11 @@
 # CapacityEquilibriaBenchmarks.jl — agent guide
 
 Read first: `docs/ms_ccopt_replication_plan.md` (the phased implementation plan this repo executes, including
-its phase gates) and `docs/BRIEF.md`. Julia package depending on `CapacityEquilibria.jl`;
-`julia --project -e 'using Pkg; Pkg.instantiate()'`. The CCOpt.jl commit SHA is pinned in `Manifest.toml` and
-restated in the README — it is pinned deliberately, not incidentally.
+its phase gates) and `docs/REPLICATION_REPORT.md` (the authoritative results). Julia package depending on
+`CapacityEquilibria.jl`; `julia --project -e 'using Pkg; Pkg.instantiate()'`. CCOpt.jl is bounded at `"0.1"` in
+`Project.toml` and resolved exactly by the committed `Manifest.toml`; the plan called for a commit-SHA pin,
+which turned out to be unnecessary once CCOpt.jl was found in the General registry (`D-0003`). The bound
+moves deliberately, in a commit of its own, not incidentally.
 
 If the code and this file disagree, the code is newer — but read the rationale in `DECISIONS.md` before
 overturning anything. Most of what looks arbitrary here was argued once already.
@@ -32,9 +34,12 @@ anything sent upstream.
   the explanation is recorded as a finding. Tuning until the numbers agree destroys the only thing this repo
   is for.
 - The upstream-facing test files in `upstream/` are generated, never hand-edited. They are produced by
-  `scripts/emit_*.jl` from the same `data/` and model definitions, registered in `generated.toml`, and
-  round-trip checked against the in-repo model. Editing the artifact instead of the generator is how the copy
-  CCOpt.jl's maintainers hold stops matching the model that validated it. See `D-0001`.
+  `scripts/emit_upstream_test.jl`, which inlines `data/` and splices the model itself out of
+  `src/murphy_smeers.jl` and out of the engine's `src/lcp_nlp.jl` and `src/pairing.jl` between
+  `# emit:<tag>:begin`/`:end` markers. Moving or deleting a marker stops the emitter rather than shrinking
+  its output. The artifact is registered in `generated.toml` and round-trip checked against the in-repo model
+  by `test/runtests.jl`. Editing the artifact instead of the generator is how the copy CCOpt.jl's maintainers
+  hold stops matching the model that validated it. See `D-0001` and `FINDINGS.md` F-0009.
 - Nothing here depends on `AdequacyMechanismSandpit.jl`. Cases here are published models with published
   answers; if a case needs an unpublished mechanism to make sense, it belongs in the sandpit.
 - Commit `Manifest.toml`. This is a reproducible study, not a library, and the CCOpt.jl pin is part of the
@@ -58,7 +63,8 @@ Short version, so the rule survives an unfollowed link:
 `julia --project -e 'using Pkg; Pkg.test()'` runs the open-loop replication against the published numbers.
 Set `RUN_CLOSED_LOOP=true` for the Phase 3 diagonalization suite (slow: one PATH solve per firm per
 iteration, and it records convergence behaviour, not just the endpoint). After any model or data change, run
-`julia --project scripts/emit_all.jl` and then the stale-artifact gate below.
+`julia --project scripts/emit_upstream_test.jl`, then
+`python ci/gates/check_stale_generated.py . --write`, then the gates below.
 
 <!-- guardrails:begin -->
 ## Portfolio conventions

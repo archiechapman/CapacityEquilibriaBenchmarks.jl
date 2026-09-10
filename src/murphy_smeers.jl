@@ -145,35 +145,74 @@ own_coefficient(variant::Symbol) =
 
 Assemble the LCP `0 ≤ z ⟂ Mz + q ≥ 0` for `variant ∈ (:competitive, :open_loop_cournot)`.
 Feed `M, q` to the engine's `lcp_model` and `lcp_residual`; use `ix` to read the solution.
+
+The assembly itself is [`ms_lcp_arrays`](@ref), which takes the parameters as plain numbers
+so that the emitter can copy it into the upstream test file verbatim. This method is the
+`MSData` wrapper around it and adds nothing but the unpacking.
 """
 function ms_lcp(d::MSData, variant::Symbol)
-    c = own_coefficient(variant)
-    ix = MSIndex(d.S)
-    n = length(ix)
+    M, q = ms_lcp_arrays(d.S, d.beta, d.alpha, d.K, d.nu, variant)
+    return M, q, MSIndex(d.S)
+end
+
+# The assembly below is spliced verbatim into `upstream/` by `scripts/emit_upstream_test.jl`
+# (DECISIONS.md D-0001, and the engine's D-0004). Everything between the two markers must
+# therefore stay self-contained: no `MSData`, no `MSIndex`, no constant from this module,
+# nothing from any package. It is the repository's only transcription of the paper's
+# equations into a matrix, so the file CCOpt.jl's maintainers would hold contains the same
+# code that the tests here validate, not a copy of it.
+#
+# emit:ms_lcp_arrays:begin
+"""
+    ms_lcp_arrays(S, beta, alpha, K, nu, variant) -> (M, q)
+
+Murphy and Smeers' open-loop capacity-expansion equilibrium as a linear complementarity
+problem `0 ≤ z ⟂ Mz + q ≥ 0`, from the paper's parameters as plain numbers.
+
+  - `S` load segments of unit width, `s = 1` the peak (p.11)
+  - `alpha[s]`, `beta`: inverse demand `pˢ = αˢ − β qˢ`, `α¹ > … > αˢ`, `β > 0` (p.12)
+  - `K[i]`, `nu[i]`: capacity and output cost of player `i`, `1 = p` peaker, `2 = b` base (p.11)
+  - `variant`: `:competitive` (equations (2)–(3), p.14) or `:open_loop_cournot` ((5)–(6), p.16),
+    which differ only in the own-output coefficient, `β` against `2β`
+
+The variable layout is `z = (x_p, x_b, y_p^1..S, y_b^1..S, λ_p^1..S, λ_b^1..S)`, so
+`n = 2 + 4S`, and row `k` of `F(z) = Mz + q` is the condition paired with `z[k]`.
+"""
+function ms_lcp_arrays(S::Integer, beta::Real, alpha::AbstractVector,
+                       K::AbstractVector, nu::AbstractVector, variant::Symbol)
+    c = variant === :competitive ? 1.0 :
+        variant === :open_loop_cournot ? 2.0 :
+        throw(ArgumentError("unknown variant $variant; expected :competitive or :open_loop_cournot"))
+    length(alpha) == S || throw(DimensionMismatch("alpha has $(length(alpha)) entries but S = $S"))
+    ix_x(i) = i
+    ix_y(i, s) = 2 + (i - 1) * S + s
+    ix_λ(i, s) = 2 + 2 * S + (i - 1) * S + s
+    n = 2 + 4 * S
     M = zeros(n, n)
     q = zeros(n)
-    for i in (PLAYER_P, PLAYER_B)
+    for i in 1:2
         # 0 ≤ x_i ⟂ K_i − Σ_s λ_i^s ≥ 0                 (3) p.14 / (6) p.16
-        r = ix_x(ix, i)
-        q[r] = d.K[i]
-        for s in 1:d.S
-            M[r, ix_λ(ix, i, s)] = -1.0
+        r = ix_x(i)
+        q[r] = K[i]
+        for s in 1:S
+            M[r, ix_λ(i, s)] = -1.0
         end
-        for s in 1:d.S
+        for s in 1:S
             # 0 ≤ y_i^s ⟂ −α^s + cβ y_i^s + β y_{−i}^s + ν_i + λ_i^s ≥ 0   (2) p.14 / (5) p.16
-            r = ix_y(ix, i, s)
-            q[r] = -d.alpha[s] + d.nu[i]
-            M[r, ix_y(ix, i, s)] = c * d.beta
-            M[r, ix_y(ix, other(i), s)] = d.beta
-            M[r, ix_λ(ix, i, s)] = 1.0
+            r = ix_y(i, s)
+            q[r] = -alpha[s] + nu[i]
+            M[r, ix_y(i, s)] = c * beta
+            M[r, ix_y(3 - i, s)] = beta
+            M[r, ix_λ(i, s)] = 1.0
             # 0 ≤ λ_i^s ⟂ x_i − y_i^s ≥ 0                 (2) p.14 / (5) p.16
-            r = ix_λ(ix, i, s)
-            M[r, ix_x(ix, i)] = 1.0
-            M[r, ix_y(ix, i, s)] = -1.0
+            r = ix_λ(i, s)
+            M[r, ix_x(i)] = 1.0
+            M[r, ix_y(i, s)] = -1.0
         end
     end
-    return M, q, ix
+    return M, q
 end
+# emit:ms_lcp_arrays:end
 
 """
     ms_conditions(data::MSData, variant, z) -> Vector

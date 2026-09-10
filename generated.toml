@@ -1,0 +1,10 @@
+# Generated artifacts and the sources they are generated from.
+# Hashes are written by `check_stale_generated.py --write` and checked by `--check`.
+# Do not hand-edit the hash fields; rerun --write after regenerating.
+
+[[artifact]]
+path = "upstream/test_murphy_smeers_lcp.jl"
+sources = ["data/", "src/murphy_smeers.jl", "scripts/emit_upstream_test.jl", "../CapacityEquilibria.jl/src/lcp_nlp.jl", "../CapacityEquilibria.jl/src/pairing.jl"]
+regenerate = "julia --project scripts/emit_upstream_test.jl"
+source_hash = "49b80d65e7c45f53407d726ea4fab4172853749bf945d06c54edd69e099ed70e"
+artifact_hash = "df9ad05842c29179df21aae9ffcafd36018075f76b05732e305e43c8a3c59993"

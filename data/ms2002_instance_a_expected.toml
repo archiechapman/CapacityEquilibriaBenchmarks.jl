@@ -37,3 +37,21 @@ price = [10.416666666666666, 6.916666666666667, 4.666666666666667]  # 125/12, 83
 segment_types = ["a", "c", "b"]
 # s=1 both at capacity; s=2 base at capacity and peaker interior; s=3 both interior. The
 # peaker operates in s=3 > S_p, which p.16 says can happen in this model.
+
+# The closed-loop Cournot equilibrium of section 6. NOT hand-derived, unlike the two above:
+# found by `enumerate_closed_loop`, which enumerates the second-stage complementarity
+# patterns and solves the two-variable problem each one induces, then verified three ways —
+# a recomputed residual of equation (16), a global best-response scan that finds no
+# profitable deviation for either player, and the paper's Theorems 4, 5, 6 and 7, Lemma 12
+# and Corollary 3, all of which relate it to the two equilibria above. See DECISIONS.md
+# D-0006 for why that is the standard here and why no uniqueness is claimed, and FINDINGS.md
+# F-0013 for the two further points that satisfy (16) and are not equilibria.
+[closed_loop_cournot]
+x_p = 5.0
+x_b = 5.0
+y_p = [5.0, 3.5, 1.6666666666666667]          # 5, 7/2, 5/3
+y_b = [5.0, 5.0, 3.6666666666666665]          # 5, 5, 11/3
+lambda_p = [2.0, 0.0, 0.0]
+lambda_b = [4.0, 0.5, 0.0]
+price = [10.0, 6.5, 4.666666666666667]        # 10, 13/2, 14/3
+segment_types = ["a", "c", "b"]

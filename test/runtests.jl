@@ -215,6 +215,169 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
         end
     end
 
+    @testset "Phase 3, closed-loop: the second stage, Lemma 7, and equation (16)" begin
+        # The closed-loop model of the paper's section 6 shares its entire second stage
+        # with the open-loop Cournot model and differs only in the condition paired with
+        # capacity. Nothing here searches for a closed-loop equilibrium; these are the
+        # pieces such a search needs, each checked on its own.
+        for tag in INSTANCES
+            data = load_ms_instance(instance_path(tag))
+            tol = Float64(TOML.parsefile(expected_path(tag))["tolerance"])
+            ol = ms_unpack(data, load_ms_expected(data, expected_path(tag),
+                                                  :open_loop_cournot))
+
+            @testset "instance $(uppercase(tag)): the second stage is the open-loop model's" begin
+                # At the open-loop capacities the short-run equilibrium must be the
+                # open-loop equilibrium's own outputs and duals. If this fails, the claim
+                # that the two models share a second stage is wrong and everything below
+                # is meaningless.
+                M2, q2, ix2 = ms_second_stage_lcp(data, ol.x)
+                @test size(M2) == (4 * data.S, 4 * data.S)
+                @test length(ix2) == 4 * data.S
+                @test is_monotone(M2)
+                pt = ms_second_stage(data, ol.x)
+                w = vcat(pt.y[PLAYER_P, :], pt.y[PLAYER_B, :],
+                         pt.λ[PLAYER_P, :], pt.λ[PLAYER_B, :])
+                @test lcp_residual(M2, q2, w).worst < tol
+                @test pt.y ≈ ol.y atol = tol
+                @test pt.λ ≈ ol.λ atol = tol
+                @test pt.price ≈ ol.price atol = tol
+                @test_throws DimensionMismatch ms_second_stage_lcp(data, [1.0, 2.0, 3.0])
+            end
+
+            @testset "instance $(uppercase(tag)): Lemma 7 against numerical differentiation" begin
+                # The derivative table (14), p.22 is the one piece of the closed-loop model
+                # that is asserted rather than solved for, so it is checked against a
+                # forward difference of the second-stage solve itself. y(x) is piecewise
+                # affine (Lemma 8, p.23), so away from a kink the two agree to solver
+                # accuracy rather than to O(h).
+                pt = ms_second_stage(data, ol.x)
+                h = 1e-6
+                perturbed = [ms_second_stage(data, ol.x .+ h .* (1:2 .== i)) for i in 1:2]
+                for s in 1:data.S
+                    B = second_stage_jacobian(data, pt, s)
+                    @test size(B) == (2, 2)
+                    for i in 1:2
+                        numeric = (perturbed[i].y[:, s] .- pt.y[:, s]) ./ h
+                        @test B[i, :] ≈ numeric atol = 1e-6
+                    end
+                end
+                # The role is consistent with the type, and the type is the derived one.
+                for s in 1:data.S
+                    t, who = segment_role(data, pt, s)
+                    @test t == segment_type(data, pt, s)
+                    @test (t in (:a, :b)) == (who == 0)
+                    t === :c && @test abs(pt.x[who] - pt.y[who, s]) < 1e-7   # i is at capacity
+                    t in (:d, :e) && @test pt.y[who, s] < 1e-7               # i is idle
+                end
+            end
+
+            @testset "instance $(uppercase(tag)): the closed-loop equilibrium, and the points that are not" begin
+                # `enumerate_closed_loop` finds every point satisfying (16) at a
+                # differentiable point, without a solver in the search. On both instances
+                # three do, and exactly one of them is an equilibrium: the other two are
+                # corners where one player invests nothing, and the other player would
+                # strictly gain by deviating. That is the piecewise convexity of Lemma 13,
+                # p.31 showing up as a stationary point that is not a minimum, and it is why
+                # D-0006 will not call a root of (16) an equilibrium without this check.
+                en = enumerate_closed_loop(data)
+                @test length(en.solutions) == 3
+
+                gaps = [best_response_gap(data, x).gap for x in en.solutions]
+                equilibria = findall(g -> g == 0.0, gaps)
+                @test length(equilibria) == 1
+                @test all(gaps[k] > 1.0 for k in eachindex(gaps) if k ∉ equilibria)
+
+                x_cl = en.solutions[only(equilibria)]
+                z_expected = load_ms_expected(data, expected_path(tag), :closed_loop_cournot)
+                @test x_cl ≈ z_expected[1:2] atol = tol
+
+                pt = ms_second_stage(data, x_cl)
+                expected_cl = TOML.parsefile(expected_path(tag))["closed_loop_cournot"]
+                @test pt.y[PLAYER_P, :] ≈ Float64.(expected_cl["y_p"]) atol = tol
+                @test pt.y[PLAYER_B, :] ≈ Float64.(expected_cl["y_b"]) atol = tol
+                @test pt.λ[PLAYER_P, :] ≈ Float64.(expected_cl["lambda_p"]) atol = tol
+                @test pt.λ[PLAYER_B, :] ≈ Float64.(expected_cl["lambda_b"]) atol = tol
+                @test pt.price ≈ Float64.(expected_cl["price"]) atol = tol
+                @test [String(segment_type(data, pt, s; tol = tol)) for s in 1:data.S] ==
+                      String.(expected_cl["segment_types"])
+                @test ms_closed_loop_residual(data, x_cl).worst < tol
+
+                # The paper's comparative results, checked against the competitive and
+                # open-loop equilibria already validated at the `validated` tier. These are
+                # the closest thing Phase 3 has to the enumeration oracle Phase 1 had.
+                cm = ms_unpack(data, load_ms_expected(data, expected_path(tag), :competitive))
+                @test sum(x_cl) >= sum(ol.x) - tol                       # Theorem 4, p.28
+                @test x_cl[PLAYER_B] >= ol.x[PLAYER_B] - tol             # Theorem 5, p.28
+                @test all(pt.price .<= ol.price .+ tol)                  # Theorem 6, p.28
+                @test sum(ol.x) - tol <= sum(x_cl) <= sum(cm.x) + tol    # Theorem 7, p.29
+                @test pt.λ[PLAYER_P, :] ≈ ol.λ[PLAYER_P, :] atol = tol   # Lemma 12, p.29
+                # Corollary 3 (18), p.28: with a type-(c) segment present, the base player
+                # has K_b > Σ λ_b while the peak player keeps equality.
+                dec = ms_closed_loop_conditions_decomposed(data, pt)
+                @test dec.valid
+                @test :c in [segment_type(data, pt, s; tol = tol) for s in 1:data.S]
+                @test dec.open_loop[PLAYER_P] ≈ 0.0 atol = tol
+                @test dec.open_loop[PLAYER_B] > tol
+                # Theorem 3, p.26: the closed-loop and open-loop equilibria differ.
+                @test !isapprox(x_cl, ol.x; atol = 1e-3)
+
+                # The two non-equilibria are corners, and the decomposition knows it cannot
+                # speak about them: a player investing nothing is at capacity trivially and
+                # can carry a positive λ, which breaks the identity.
+                for k in eachindex(en.solutions)
+                    k in equilibria && continue
+                    bad = ms_second_stage(data, en.solutions[k])
+                    @test any(en.solutions[k] .<= tol)
+                    @test !ms_closed_loop_conditions_decomposed(data, bad).valid
+                end
+            end
+
+            @testset "instance $(uppercase(tag)): equation (16) and its decomposition agree" begin
+                # ms_closed_loop_conditions builds (16) term by term from Lemma 7's table;
+                # ms_closed_loop_conditions_decomposed writes the same quantity as the
+                # open-loop condition plus a type-(c) correction. Two transcriptions of one
+                # equation, in the D-0005 pattern, so an error in either shows as a gap.
+                pt = ms_second_stage(data, ol.x)
+                ξ = ms_closed_loop_conditions(data, pt)
+                dec = ms_closed_loop_conditions_decomposed(data, pt)
+                @test dec.valid          # both players invest here, so the identity applies
+                @test ξ ≈ dec.xi atol = 1e-9
+
+                # At the open-loop capacities the open-loop condition holds by construction,
+                # so the decomposition's first term vanishes and ξ is the correction alone.
+                @test dec.open_loop ≈ [0.0, 0.0] atol = tol
+                @test ξ ≈ dec.manipulation atol = tol
+
+                # Both instances have a type-(c) segment with the base player at capacity,
+                # so the paper predicts the signs: Corollary 3 (18), p.28 gives K_p = Σλ_p
+                # and K_b > Σλ_b at a closed-loop equilibrium, and Theorem 5, p.28 says the
+                # closed-loop base capacity is the larger. A negative ξ_b here is that
+                # pressure to invest, and it is why the open-loop point is not a
+                # closed-loop equilibrium (Theorem 3, p.26).
+                types = [segment_type(data, pt, s) for s in 1:data.S]
+                @test :c in types
+                @test ξ[PLAYER_P] ≈ 0.0 atol = tol
+                @test ξ[PLAYER_B] < -tol
+                # The correction is exactly -(β/2) times the base player's output in the
+                # type-(c) segments where it is at capacity. Checked against a sum written
+                # here rather than by the function under test.
+                expected_corr = -0.5 * data.beta * sum(
+                    pt.y[PLAYER_B, s] for s in 1:data.S
+                    if segment_role(data, pt, s) == (:c, PLAYER_B); init = 0.0)
+                @test ξ[PLAYER_B] ≈ expected_corr atol = tol
+
+                # And the residual view of the same thing: the open-loop capacities fail to
+                # be a closed-loop equilibrium, while the second stage under them is solved.
+                r = ms_closed_loop_residual(data, ol.x)
+                @test r.second_stage < tol
+                @test r.ξ ≈ ξ atol = 1e-9
+                @test r.worst > tol          # not a closed-loop equilibrium
+                @test r.primal == 0.0        # the capacities themselves are feasible
+            end
+        end
+    end
+
     @testset "the emitted upstream file is the same model, and still solves it" begin
         # DECISIONS.md D-0001: what CCOpt.jl's maintainers would hold is generated from
         # `data/` and from the model sources, never hand-written. This is the round trip

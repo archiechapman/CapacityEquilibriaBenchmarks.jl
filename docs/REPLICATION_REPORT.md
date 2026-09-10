@@ -5,11 +5,13 @@ the PATH solve, the CCOpt.jl solve, and the tolerance each comparison was made a
 any number in a docstring, README or commit message. Claims are made at the tier their
 `FINDINGS.md` entry carries and no higher.*
 
-*Status as of 2026-09-10: Phases 1 and 2 complete. Both open-loop models are validated on
-two constructed instances against a hand derivation, an exhaustive enumeration and the
-paper's own theorems, and are solved by PATH and by both of CCOpt.jl's methods over four
-routes. The upstream test file is generated and passing. Not done: Phase 3, the closed-loop
-model.*
+*Status as of 2026-09-10: Phases 1 and 2 complete, Phase 3 substantially complete. Both
+open-loop models are validated on two constructed instances against a hand derivation, an
+exhaustive enumeration and the paper's own theorems, and are solved by PATH and by both of
+CCOpt.jl's methods over four routes. The upstream test file is generated and passing. The
+closed-loop equilibrium of each instance is found and checked against every comparative
+result the paper states. Not done: diagonalization as a second route to the closed-loop
+point, and Phase 4's monolithic MPCC.*
 
 ## The paper, and what it publishes
 
@@ -140,6 +142,68 @@ to the equilibrium.
 | Less total capacity, higher prices than competitive | Theorem 7, p.29 | 9.58 vs 15 | 6.31 vs 9.6 GW |
 | Peakers may run in `s > S_p` | p.16 | yes, `s = 3` | yes, `s = 3, 4` |
 
+
+## Case 3: closed-loop Cournot equilibrium — equation (16), p.24
+
+`FINDINGS.md` F-0012 (structure), F-0013 (the equilibria), tier **validated**.
+`DECISIONS.md` D-0006 says what validation means here, and it is a weaker standard than
+D-0004's: there is no hand derivation, and no uniqueness is claimed.
+
+| Quantity | Paper | A | B |
+|---|---|---|---|
+| x_p, x_b | — | 5, 5 | 3.03, 3.54 GW |
+| y_p | — | 5, 7/2, 5/3 | 3.03, 2.48, 29/15, 8/5 |
+| y_b | — | 5, 5, 11/3 | 3.54, 3.54, 47/15, 14/5 |
+| λ_p | — | 2, 0, 0 | 24, 0, 0, 0 |
+| λ_b | — | 4, 1/2, 0 | 30.9, 1.4, 0, 0 |
+| prices | — | 10, 13/2, 14/3 | 84.3, 54.8, 148/3, 46 $/MWh |
+| segment types | — | a, c, b | a, c, b, b |
+| roots of (16) | — | 3, one of them an equilibrium | 3, one of them an equilibrium |
+
+Found by `enumerate_closed_loop`, which enumerates all `2^(4S)` second-stage
+complementarity patterns — each fixes every segment's regime, hence Lemma 7's derivative
+table, hence an affine `ξ(x)` in two variables — and solves the small problem each induces.
+No solver takes part in the search; every candidate is re-verified against a real
+second-stage solve afterwards. 3.7 s on instance A, 7.2 s on instance B.
+
+| Property the paper states | Where | A | B |
+|---|---|---|---|
+| Total capacity at least the open-loop's | Theorem 4, p.28 | 10 vs 9.58 | 6.57 vs 6.31 |
+| Base capacity at least the open-loop's | Theorem 5, p.28 | 5 vs 4.17 | 3.54 vs 3.01 |
+| Prices below open-loop in every segment | Theorem 6, p.28 | holds | holds |
+| Total capacity between open-loop and competitive | Theorem 7, p.29 | 9.58 < 10 < 15 | 6.31 < 6.57 < 9.6 |
+| `λ_p` identical to the open-loop and competitive values | Lemma 12, p.29 | holds | holds |
+| `K_p = Σ λ_p` and `K_b > Σ λ_b` with a type (c) segment | Corollary 3 (18), p.28 | 0 and 2.5 | 0 and 17.7 |
+| Closed-loop differs from open-loop | Theorem 3, p.26 | holds | holds |
+
+### The two roots that are not equilibria
+
+The result worth reporting most carefully. Equation (16) is a first-order condition at a
+differentiable point, and on each instance it has three roots. Two of them are corners at
+which one player invests nothing:
+
+| Instance | Root of (16) | Best response available to the other player |
+|---|---|---|
+| A | (7.5, 0) | 46.3 |
+| A | (0, 6.5) | 32.0 |
+| A | (5, 5) | 0 |
+| B | (4.8, 0) | 322.5 |
+| B | (0, 4.475) | 187.9 |
+| B | (3.03, 3.54) | 0 |
+
+The corner roots are genuine — their residual is zero, not small — and they are not
+equilibria. They also violate Theorems 4, 6 and 7, so the paper's own theory rejects them
+independently of the deviation test. This is Lemma 13, p.31 in practice: the long-run
+objective is only piecewise convex and its marginal cost can jump downwards (Figure 4,
+p.32), so a player at zero capacity can face a positive marginal cost for its first unit
+while a larger investment is strictly better.
+
+Two consequences, both recorded rather than absorbed. Any method that stops at a
+first-order condition can land on one of these points, diagonalization included. And
+`DECISIONS.md` D-0006 is amended to require a best-response check before a root of (16) is
+described as an equilibrium anywhere in this repository.
+
+
 ## What "replicated" means here, and what it does not
 
 Each case's PATH point agrees with two solver-free routes to the same equilibrium to better
@@ -151,9 +215,11 @@ scale.
 
 It is not a reproduction of published numbers, because there are none. Nothing in this
 report should be quoted as Murphy and Smeers' result. The full negative list is in
-`FINDINGS.md`, "What this does not establish"; the two items that matter most: nothing here
-concerns the closed-loop model, and all four problems are the easy case of a unique strictly
-complementary solution, which is exactly why their answers could be known in advance.
+`FINDINGS.md`, "What this does not establish"; the two items that matter most: the four
+open-loop problems are the easy case of a unique strictly complementary solution, which is
+exactly why their answers could be known in advance, and the closed-loop results rest on a
+weaker footing again — no hand derivation, no uniqueness claim, and an enumeration that
+would miss an equilibrium sitting on a kink between regimes.
 
 ## Reproducing this report
 
@@ -163,7 +229,7 @@ julia --project scripts/report_agreement.jl
 julia --project scripts/emit_upstream_test.jl    # rewrites upstream/, which CI checks
 ```
 
-311 tests; about three minutes after precompilation, most of it the enumeration of 2¹⁴
+439 tests; about three minutes after precompilation, most of it the enumeration of 2¹⁴
 and 2¹⁸ patterns. No PATH licence is needed at these sizes. `Manifest.toml` is committed;
 the versions it records are part of the result.
 

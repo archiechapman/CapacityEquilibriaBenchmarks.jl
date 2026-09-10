@@ -37,7 +37,7 @@ against a combined-cycle plant over four quarter-year load blocks.
 | `src/enumerate_lcp.jl` | The solver-free oracle: every solution of a small LCP by enumerating its complementarity patterns, plus the monotonicity and strict-complementarity checks that make one solution provably the only one. |
 | `test/` | The validation: both instances, both models, both solvers, each property cited to its page. |
 | `docs/` | The plan and its corrections, the derivations of both instances, and the replication report. |
-| `scripts/` | `report_agreement.jl` prints the solver-agreement table; `emit_upstream_test.jl` writes the upstream file. |
+| `scripts/` | `report_agreement.jl` prints the solver-agreement table; `emit_upstream_test.jl` writes the upstream file; `negative_controls.jl` breaks a copy of that file eight ways and checks that the tests notice. |
 | `upstream/` | `test_murphy_smeers_lcp.jl`, the test file offered to CCOpt.jl — generated, so edit the emitter and never the file — beside `PULL_REQUEST.md`, the hand-written description that would accompany it. |
 
 ## Getting set up
@@ -56,7 +56,7 @@ julia --project -e 'using Pkg; Pkg.test()'
 ```
 
 About three minutes after precompilation, most of it the enumeration of instance B's 2¹⁸
-patterns; 303 tests, including the 24 the emitted upstream file runs for itself. No PATH
+patterns; 311 tests, including the 24 the emitted upstream file runs for itself. No PATH
 licence is needed at 14 and 18 variables, though the engine's README explains how to set
 one before it is.
 

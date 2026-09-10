@@ -130,17 +130,30 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
                 for b in BACKENDS
                     @test lcp_residual(M, q, sols[b].x).worst < tol
                     @test sols[b].x ≈ z_hand atol = tol
-                    @test sols[b].x ≈ sols[:path].x atol = tol
+                    b === :path || @test sols[b].x ≈ sols[:path].x atol = tol
                 end
                 # The two relaxation runs are one method on one problem, reached with and
-                # without the bridges. A gap between them would mean the bridges changed
-                # the model, so they are held to far more than the case tolerance.
-                @test sols[:ccopt].x ≈ sols[:ccopt_relaxation].x atol = 1e-10
+                # without the bridges. They agree *exactly*, because the bridges build the
+                # same lifted NLP the engine builds by hand, in the same variable order.
+                # Equality is the honest assertion; a tolerance here would be a threshold
+                # with nothing to threshold (engine `FINDINGS.md` F-0006).
+                @test sols[:ccopt].x == sols[:ccopt_relaxation].x
 
-                # 5. The regime is the one the derivation was done on.
-                pt = ms_unpack(data, sols[:path].x)
-                @test [segment_type(data, pt, s) for s in 1:data.S] == types(variant)
+                # 5. The regime is the one the derivation was done on — checked on every
+                #    backend's point, not just PATH's. This is the check that separates a
+                #    solver which is merely *near* the equilibrium from one that is on the
+                #    right side of every complementarity boundary, so inheriting it from
+                #    PATH would have defeated its purpose. It is applied at the case
+                #    tolerance rather than `segment_type`'s stricter default: the point is
+                #    declared to be the equilibrium at `tol`, so it should be classified at
+                #    `tol` too, and the nearest genuine regime boundary is O(0.1) away,
+                #    four orders clear of either.
                 solutions[variant] = Dict(b => ms_unpack(data, sols[b].x) for b in BACKENDS)
+                for b in BACKENDS
+                    pt = solutions[variant][b]
+                    @test [segment_type(data, pt, s; tol = tol) for s in 1:data.S] ==
+                          types(variant)
+                end
             end
         end
 

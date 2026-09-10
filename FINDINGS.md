@@ -413,10 +413,17 @@ one, diagonalization moves on the first round and converges to the equilibrium.
 **So the subroutine carries the risk, not the iteration.** The best response here is
 computed globally and exactly: for a fixed rival capacity each second-stage pattern makes
 the objective quadratic on an interval, and the minimum over all such pieces is the global
-minimum. Had it instead been a local solve from the current iterate — the obvious
-implementation, and the one a solver-based approach invites — a corner would have been a
-fixed point of the whole scheme, and diagonalization would have reported it as an
+minimum. Had it instead been a local solve from the current iterate, a corner would have
+been a fixed point of the whole scheme, and diagonalization would have reported it as an
 equilibrium with a clean convergence history. Nothing in the loop would have noticed.
+
+*Corrected by F-0016, 2026-09-11.* The sentence above originally continued "— the obvious
+implementation, and the one a solver-based approach invites —", implying that using a solver
+for the inner problem would put you in that trap. That is wrong about CCOpt. Started exactly
+at a corner, both of its methods leave and find the global best response, because their
+homotopy loosens the complementarity before tightening it and the iterate can cross a regime
+boundary while it is loose. The risk described here is real for a method that starts with
+the complementarity tight; it is not a property of solver-based approaches in general.
 
 That is the finding worth carrying into Phase 4. The plan proposes stacking every player's
 first-order conditions into one monolithic MPCC for CCOpt.jl to solve. Such a system has
@@ -473,6 +480,44 @@ for a relaxation scheme", and that nothing had been put to either method on a de
 problem. This is that problem, it arrived from the model rather than being constructed, and
 the two methods behave differently on it in a way their termination status does not show.
 
+
+## F-0016 — CCOpt reaches the global best response on every case tried, including when started exactly at a local optimum that is not global.
+
+- tier: validated
+- status: settled
+- date: 2026-09-11
+- evidence: `src/best_response_mpcc.jl` builds one player's long-run problem as an MPCC — a nonconvex quadratic objective over the second-stage complementarity conditions, `1 + 8S` variables, `4S` linear equalities, `4S` complementary pairs — and `test/runtests.jl`, testset "the best response as an MPCC for CCOpt"; 24 solves over two instances, three rival capacity vectors, both players and both CCOpt methods all return the global best response known exactly from Phase 3's enumeration, to within 1.3e-6 in the objective; the sharper test is 8 further solves started with every variable consistent at a corner root of (16), where the player holds nothing and is at a local optimum, and all 8 leave it and reach the global answer, worth 31.95 and 46.33 on instance A and 187.85 and 322.52 on instance B
+- boundary: two constructed instances and one problem family; "global" means agreement with the pattern enumeration of Phase 3, which is exact for this family and not a general certificate; both CCOpt methods at default options, where the relaxation homotopy begins with a loosened complementarity and the penalty method with a small penalty, and it is that loosening which plausibly does the escaping — a method started with the complementarity already tight would have no such mechanism and this result should not be read as covering one; the objective's Hessian is indefinite on every segment but the nonconvexity here is mild and structured, one downward jump per regime boundary, so nothing here speaks to a badly nonconvex MPCC; no claim is made that CCOpt finds global optima in general, which would be false
+- supersedes: none — corrects an inference drawn in F-0014
+
+Phase 4's first result, and it corrects something this ledger said a day earlier.
+
+F-0014 observed that diagonalization's robustness rests on the best response being computed
+globally, and reasoned that "with a local best response a corner would have been a fixed
+point of the whole scheme, and the loop would have reported it as an equilibrium with a
+clean convergence history". That reasoning is sound for a method that only moves downhill
+from its starting point. It does not describe CCOpt. Handed the best-response MPCC and
+started exactly at the corner, both of CCOpt's methods leave and find the global answer, on
+every one of the eight cases tried. A diagonalization loop built on CCOpt would therefore
+not have been trapped, and the pessimism in F-0014 was about a hypothetical solver rather
+than this one.
+
+The mechanism is almost certainly the homotopy. Both methods begin with the complementarity
+conditions relaxed — a positive relaxation parameter in one case, a small penalty in the
+other — and tighten them over a sequence of subproblems. While they are loose the iterate
+can cross a regime boundary, which is exactly the barrier a fixed-complementarity local
+method cannot cross. That is a property of the method rather than of the problem, and it is
+the most useful thing this programme has found out about CCOpt so far.
+
+What this does not do is make the monolithic system of the plan's Phase 4 well posed. That
+remains blocked on the fact recorded in `src/best_response_mpcc.jl`: equation (16) depends
+on a piecewise-constant derivative table, so it is not a smooth function of the variables
+and no single smooth MPCC has it as stationarity conditions. The two honest routes are a
+disjunctive encoding, which leaves MPCC territory, and stacking each player's MPEC-KKT
+conditions, whose constraint qualifications are known to fail generically and which F-0015
+shows do fail at the degenerate corners of this very problem. Neither is a translation, and
+neither has been built.
+
 ---
 
 ## What this does not establish
@@ -524,7 +569,11 @@ the two methods behave differently on it in a way their termination status does 
    posting is a deliberate step that has not been taken. The artifact stands on its own
    as a validation case either way (the plan's own framing), and the engine's F-0007 — the
    `RawStatusString` bug — is worth reporting with it.
-6. Phase 3, in progress. The model is transcribed (F-0012), both instances' closed-loop
+6. Phase 4, in progress. One player's best response is built as an MPCC and CCOpt solves
+   it globally on every case tried, including from adversarial starts (F-0016). The
+   monolithic joint system the plan asks for is not built, and `src/best_response_mpcc.jl`
+   records why it is not the mechanical translation the plan describes.
+7. Phase 3, complete. The model is transcribed (F-0012), both instances' closed-loop
    equilibria are found and checked against every comparative result the paper states
    (F-0013), and D-0006 records what validation means here. What remains: an instance whose
    equilibrium sits on a kink, which the enumeration would miss and which would test the

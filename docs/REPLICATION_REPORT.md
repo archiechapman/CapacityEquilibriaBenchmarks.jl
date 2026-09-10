@@ -11,8 +11,9 @@ exhaustive enumeration and the paper's own theorems, and are solved by PATH and 
 CCOpt.jl's methods over four routes. The upstream test file is generated and passing. The
 closed-loop equilibrium of each instance is found by a solver-free enumeration, reached
 independently by diagonalization, and checked against every comparative result the paper
-states. Not done: Phase 4's monolithic MPCC, which F-0014 and F-0015 argue cannot be offered
-upstream as a plain regression test.*
+states. Phase 4 has begun: one player's best response is built as a genuine MPCC and CCOpt
+reaches its known global optimum on every case tried. Not done: the monolithic joint system,
+which turns out not to be the reformulation the plan describes.*
 
 ## The paper, and what it publishes
 
@@ -205,6 +206,49 @@ first-order condition can land on one of these points, diagonalization included.
 described as an equilibrium anywhere in this repository.
 
 
+## Case 4: the best response as an MPCC — equation (15), p.24
+
+`FINDINGS.md` F-0016, tier **validated**. This is Phase 4's first result and the first place
+in this programme where CCOpt is asked to *optimise* rather than to solve a square system.
+
+One player's long-run problem, written as an MPCC: minimise its capacity cost less its gross
+margin, subject to the second-stage equilibrium conditions, over `1 + 8S` nonnegative
+variables with `4S` linear equalities and `4S` complementary pairs. The objective's Hessian
+on each segment's own-output block is `[2β β; β 0]`, determinant `−β²`, so the problem is
+indefinite in every segment. Its global optimum is known exactly from the pattern
+enumeration of Phase 3, which is what makes it a test rather than a demonstration.
+
+| What was solved | Solves | Result |
+|---|---|---|
+| Both players, three rival capacity vectors, two instances, both CCOpt methods | 24 | global optimum every time, objective within 1.3e-6 |
+| Started exactly at a local optimum that is not global, at each corner root | 8 | left it every time and reached the global optimum |
+
+The second row is the one that matters. At a corner root of (16) the player holding nothing
+is at a local optimum: no small increase of capacity pays. The global answer is far away and
+worth 31.95 and 46.33 on instance A, 187.85 and 322.52 on instance B. Started there with
+every variable consistent, a method that only moves downhill has no reason to leave. Both of
+CCOpt's methods leave, on all eight cases.
+
+The likely mechanism is the homotopy both methods use: they begin with the complementarity
+loosened and tighten it over a sequence of subproblems, and while it is loose the iterate can
+cross a regime boundary. That is exactly the barrier that traps a method starting with the
+complementarity already tight, and it means a best-response iteration built on CCOpt would
+not be caught by the trap F-0014 described. F-0016 records that correction against F-0014
+rather than editing it away.
+
+### Why the monolithic system in the plan is not built
+
+The plan describes Phase 4 as stacking every player's first-order conditions into one MPCC
+and calls it a reformulation. It is not one. Equation (16) depends on `B_i y_j`, which
+Lemma 7 (14), p.22 gives as a piecewise-constant table indexed by regime, so (16) is not a
+smooth function of the variables and no single smooth MPCC has it as stationarity
+conditions. The two honest routes are a disjunctive encoding, which leaves MPCC territory,
+and stacking each player's MPEC-KKT conditions, whose constraint qualifications fail
+generically and demonstrably fail at the degenerate corners of F-0015. Neither is built, and
+the choice between them is the design fork the plan itself says to raise with CCOpt.jl's
+maintainers before committing to one.
+
+
 ## The two artifacts offered upstream
 
 `upstream/` holds two generated files and three hand-written notes. Neither file has been
@@ -273,7 +317,7 @@ julia --project scripts/report_agreement.jl
 julia --project scripts/emit_upstream_test.jl    # rewrites upstream/, which CI checks
 ```
 
-567 tests (617 with RUN_CLOSED_LOOP=true); about three minutes after precompilation, most of it the enumeration of 2¹⁴
+657 tests (707 with RUN_CLOSED_LOOP=true); about three minutes after precompilation, most of it the enumeration of 2¹⁴
 and 2¹⁸ patterns. No PATH licence is needed at these sizes. `Manifest.toml` is committed;
 the versions it records are part of the result.
 

@@ -16,6 +16,11 @@ sensitivity of the second-stage equilibrium to first-stage investment.
 module CapacityEquilibriaBenchmarks
 
 using CapacityEquilibria
+import LinearAlgebra
+import NLPModels
+import MPCCModels
+import CCOpt
+import MadNLP
 
 export MSData, MSIndex, MSPoint, MS_VARIANTS, PLAYER_P, PLAYER_B
 export load_ms_instance, check_assumptions, peak_segments
@@ -30,11 +35,13 @@ export enumerate_closed_loop, closed_loop_affine
 export closed_loop_objective, best_response_gap
 export best_response, diagonalize
 export ms_second_stage_arrays, ms_regime, ms_regime_jacobian, ms_closed_loop_xi
+export BestResponseMPCC, best_response_mpcc, solve_best_response_mpcc, best_response_start
 
 include("murphy_smeers.jl")
 include("murphy_smeers_closed_loop.jl")
 include("enumerate_lcp.jl")
 include("enumerate_closed_loop.jl")
 include("diagonalize_closed_loop.jl")
+include("best_response_mpcc.jl")
 
 end # module

@@ -14,8 +14,8 @@ CCOpt.jl's methods over four routes, and validated on two constructed instances 
 hand derivation, an exhaustive enumeration, and the paper's own theorems.
 `docs/REPLICATION_REPORT.md` is the synthesis. Phase 2's deliverable, a self-contained
 regression test offered to CCOpt.jl, is generated into `upstream/` with the pull-request
-description beside it; it has not been offered to anyone yet. Phase 3, the closed-loop
-model, is under way: it is transcribed, both instances' closed-loop equilibria are found by
+description beside it; it has not been offered to anyone yet. Phase 4 has begun. Phase 3, the closed-loop
+model, is complete: it is transcribed, both instances' closed-loop equilibria are found by
 a solver-free enumeration and checked against every comparative result the paper states,
 two further roots of the equilibrium condition are shown not to be equilibria at all, and
 diagonalization reaches the same point from every start tried.
@@ -38,6 +38,7 @@ against a combined-cycle plant over four quarter-year load blocks.
 | `data/` | The two instances and their derived equilibria, each file stating where every value came from. See `data/PROVENANCE.md` — this is the repository's one dangerous area. |
 | `src/murphy_smeers.jl` | The two open-loop models as `(M, q)` for the engine's `lcp_model`, a second row-by-row transcription of the equations to check the assembly against, and the paper's stated properties as checks on a point. |
 | `src/murphy_smeers_closed_loop.jl` | The closed-loop model of the paper's section 6: the short-run equilibrium at fixed capacities, Lemma 7's closed-form sensitivity of it to capacity, and equation (16) written twice. |
+| `src/enumerate_closed_loop.jl`, `src/diagonalize_closed_loop.jl`, `src/best_response_mpcc.jl` | Phases 3 and 4: a solver-free enumeration of the closed-loop roots, best-response iteration with convergence diagnostics, and one player's best response as an MPCC for CCOpt. |
 | `src/enumerate_lcp.jl` | The solver-free oracle: every solution of a small LCP by enumerating its complementarity patterns, plus the monotonicity and strict-complementarity checks that make one solution provably the only one. |
 | `test/` | The validation: both instances, both models, both solvers, each property cited to its page. |
 | `docs/` | The plan and its corrections, the derivations of both instances, and the replication report. |
@@ -60,7 +61,7 @@ julia --project -e 'using Pkg; Pkg.test()'
 ```
 
 About three minutes after precompilation, most of it the enumeration of instance B's 2¹⁸
-patterns; 567 tests (617 with RUN_CLOSED_LOOP=true), including the 24 the emitted upstream file runs for itself. No PATH
+patterns; 657 tests (707 with RUN_CLOSED_LOOP=true), including the 24 the emitted upstream file runs for itself. No PATH
 licence is needed at 14 and 18 variables, though the engine's README explains how to set
 one before it is.
 

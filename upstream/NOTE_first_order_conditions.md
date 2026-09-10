@@ -14,6 +14,9 @@ system. On two instances that system has **three solutions each. Only one of the
 equilibrium.** The other two are perfectly good roots at which a player would in fact
 prefer to do something completely different.
 
+Two of the three things below reflect well on CCOpt and the awkward one is awkward for the
+modelling rather than for the solver, so this is not a complaint dressed up as a note.
+
 CCOpt gets the economically meaningful part right at all three points, with both methods.
 The trouble is not in the solver. It is that the system has a larger solution set than the
 question it was written to answer, and no amount of solver accuracy closes that gap.
@@ -162,13 +165,42 @@ which is the obvious implementation, and the one a solver naturally invites — 
 *is* a fixed point, and the whole scheme reports it as an equilibrium with a clean
 convergence history and nothing anywhere to indicate a problem.
 
-So the reliability sits in a place that is easy to overlook: not in the outer iteration, not
-in the solver's accuracy, but in whether the innermost optimisation is global. That is a
-property nobody checks by looking at residuals.
+**And here CCOpt comes out well, which I want to say as plainly as the awkward part.** I
+wrote each firm's best response as an MPCC — a nonconvex quadratic objective over the
+output-stage complementarity conditions — and handed it to CCOpt. Its global optimum is
+known exactly for this family, so this is a case where a solver can be marked against a
+right answer rather than against another method's fixed point.
+
+Both methods found the global optimum on all 32 solves I tried. The eight that matter are
+the ones started *exactly at a local optimum that is not global*: the firm holding nothing,
+every variable consistent, at a point where no small increase pays. A method that only moves
+downhill has no reason to leave. Both of yours left, every time, and found improvements
+worth 32, 46, 188 and 322.
+
+My guess at the mechanism is the homotopy. Both methods begin with the complementarity
+loosened and tighten it over a sequence of subproblems, and while it is loose the iterate can
+cross a regime boundary, which is exactly the barrier that traps a method starting with the
+complementarity already tight. If that is right it is a property of the approach rather than
+of this problem, and it is the most useful thing I have learned about CCOpt. It also means a
+best-response loop built on CCOpt would not fall into the trap described just above, which is
+worth knowing before anyone builds one.
+
+So the reliability sits in a place that is easy to overlook: not in the outer iteration and
+not in the solver's residual, but in whether the innermost optimisation can cross a regime
+boundary. Yours can, and no residual would ever have told me that.
 
 I do not think there is a fix inside a solver for this. The extra roots are really there in
 the system. What a solver could plausibly offer is a way to find *several* of them, and what
 a benchmark suite could offer is a case where finding one and stopping is visibly not enough.
+
+One more thing I should flag, having tried to build the monolithic version. It is not the
+mechanical translation I had assumed. The capacity-stage condition depends on how the output
+stage responds to capacity, and that response is a piecewise-constant table indexed by which
+constraints are active, so the condition is not a smooth function of the variables and no
+single smooth MPCC has it as stationarity conditions. The routes I can see are a disjunctive
+encoding, which leaves MPCC territory, or stacking each firm's MPEC-KKT conditions, whose
+constraint qualifications fail generically and demonstrably fail at the degenerate corners
+above. I have not built either, and I would rather hear what you think before I do.
 
 ## What I am actually proposing
 
@@ -189,6 +221,11 @@ The one thing I would gently push back on, having been through it, is offering t
 monolithic MPCC as a plain regression test with a single expected answer. It would look like
 one and would not be one, and whichever root the solver happened to land on would become the
 expected value by accident.
+
+If you did want a test out of this, the best-response MPCC is the better candidate: a
+genuine nonconvex MPCC, small, self-contained, with an exactly known global optimum and an
+adversarial starting point that a downhill-only method would fail from. I have not packaged
+that one, and would only do so if it is of interest.
 
 ## Reproducing it
 

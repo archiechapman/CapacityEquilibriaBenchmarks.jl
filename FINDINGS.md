@@ -177,8 +177,8 @@ emitted upstream file — is F-0008 and F-0009.
 - tier: validated
 - status: settled
 - date: 2026-09-10
-- evidence: `scripts/report_agreement.jl` and `test/runtests.jl`, the four "derivation, enumeration, PATH and CCOpt agree" testsets and the eight property testsets, 303 passing — the penalty method's recomputed residuals are 7.9e-8 and 5.2e-8 on instance A and 3.6e-7 and 3.9e-7 on instance B, at distances 5.8e-8, 2.7e-8, 3.3e-8 and 3.1e-8 from the hand-derived points, against tolerances of 1e-6 and 1e-5 set before it was run; the relaxation method reached through the engine's direct `MPCCModel` route returns the same residual and the same distance as the JuMP route on every case, and the two points agree to better than 1e-10
-- boundary: CCOpt v0.1.0 over MadNLP v0.10.1, both methods at their default options apart from silence, on four linear complementarity problems of 14 and 18 variables, each with a unique strictly complementary solution — the easy case for either scheme, and the one that says least about a solver; the bridge-innocence claim covers only what these problems ask the bridges to do, which is to lift an affine `[F; x]` pairing over nonnegative variables, and would have to be re-established for free variables or a nonlinear map; the penalty method's residuals run two to five times the relaxation method's and both are two to three orders behind PATH, which is the number to watch if a tolerance is ever loosened; the failure mode is a case where the two methods agree with each other and both are wrong, which nothing here would catch and which is why the hand derivation and the enumeration remain the oracles
+- evidence: `scripts/report_agreement.jl` and `test/runtests.jl`, the four "derivation, enumeration, PATH and CCOpt agree" testsets and the eight property testsets, 311 passing — the penalty method's recomputed residuals are 7.9e-8 and 5.2e-8 on instance A and 3.6e-7 and 3.9e-7 on instance B, at distances 5.8e-8, 2.7e-8, 3.3e-8 and 3.1e-8 from the hand-derived points, against tolerances of 1e-6 and 1e-5 set before it was run; the relaxation method reached through the engine's direct `MPCCModel` route returns the same residual and the same distance as the JuMP route on every case, and the two points are bitwise identical (max-norm difference exactly 0.0 on all four cases, asserted with `==`)
+- boundary: CCOpt v0.1.0 over MadNLP v0.10.1, both methods at their default options apart from silence, on four linear complementarity problems of 14 and 18 variables, each with a unique strictly complementary solution — the easy case for either scheme, and the one that says least about a solver; the bitwise agreement of the two relaxation routes covers only what these problems ask the bridges to do, which is to lift an affine `[F; x]` pairing over nonnegative variables, and would break on any change to the bridges' variable ordering as well as on free variables or a nonlinear map; the regime check is run at the case tolerance rather than `segment_type`'s stricter 1e-7 default, which is the right tolerance for the claim but leaves it unable to detect a solver whose regime error is smaller than the tolerance at which its point is accepted at all; the penalty method's residuals run two to five times the relaxation method's and both are two to three orders behind PATH, which is the number to watch if a tolerance is ever loosened; the failure mode is a case where the two methods agree with each other and both are wrong, which nothing here would catch and which is why the hand derivation and the enumeration remain the oracles
 - supersedes: none — extends F-0007 from one CCOpt method to both, and from two routes to four
 
 Phase 2's remaining solver question, and the answer is the same as F-0007's: on four
@@ -186,17 +186,28 @@ problems with known answers, both of CCOpt's documented methods reach them. That
 correctness regression result and not a demonstration of scale, which is how the plan asks
 for it to be framed.
 
-Two things are worth separating out. First, **the bridges are innocent.** `:ccopt` and
-`:ccopt_relaxation` are one method on one problem, reached with and without the
-MathOptComplements bridge stack, and they return the same iterate to ten digits on all four
-cases. Whatever CCOpt does here, it does to the problem it was meant to be given, and the
-JuMP-route results in F-0007 do not need re-reading as results about the bridges. Second,
-**the property checks are run on the penalty point too**, independently rather than
+Two things are worth separating out. First, **the bridges construct exactly the lifting
+the engine writes by hand.** `:ccopt` and `:ccopt_relaxation` are one method on one problem,
+reached with and without the MathOptComplements bridge stack, and they return *bitwise
+identical* vectors on all four cases — not agreement to some number of digits, which is how
+an earlier draft of this entry put it and which invited the misreading that two independent
+numerical paths had converged. What the equality actually says is structural: the bridges
+produce the same NLP in the same variable order, and MadNLP is deterministic over it. So
+the JuMP-route results in F-0007 are results about the method, not about the bridges.
+
+Second, **every check is run on every backend's point**, independently rather than
 inherited: production and pricing efficiency, the investment criterion, Theorem 1, Lemmas 5,
-11 and 12 and Corollary 1 are each recomputed from whatever point the penalty method
-returned. A solver landing near the right point but on the wrong side of a complementarity
-boundary would fail `segment_type` and the pricing-efficiency check at a passing distance,
-and none does.
+11 and 12, Corollary 1, and the segment-regime classification of partition (13) are each
+recomputed from whatever point each solver returned. The regime check matters most here,
+because it is the one that distinguishes a solver merely *near* the equilibrium from one on
+the right side of every complementarity boundary: a point at a passing distance but in the
+wrong regime fails it. None does, on any backend.
+
+That last sentence is a correction. As first written, this entry appealed to `segment_type`
+as a check on the CCOpt points when the test ran it on PATH's point alone, so the argument
+was not supported by the code beneath it. The check was extended to all four backends rather
+than the claim weakened, because the measurements show it survives: the penalty method's
+worst point sits 5.8e-8 from the derived one and every regime boundary is O(0.1) away.
 
 The penalty method is slightly the less accurate of the two on every case, by a factor of
 two to five in the residual. On these problems that is a remark, not a finding: both sit
@@ -229,6 +240,44 @@ The header of the emitted file says, in its own words, that the instances are co
 that neither edition of the paper publishes numbers, and that both problems are the easy
 case of a unique strictly complementary solution. A reviewer who reads only that file
 should not be able to come away believing this is a replication of published results.
+
+
+## F-0010 — The checks that guard the emitted upstream file fail when they should, and no two of them are the same check.
+
+- tier: validated
+- status: settled
+- date: 2026-09-10
+- evidence: `scripts/negative_controls.jl`, which breaks a copy of the emitted file in eight ways and reports which check notices, exiting nonzero if any goes unnoticed — nine controls, all behaving as expected: a corrupted equilibrium is caught by `case.z == z_hand` (NC1), a corrupted `alpha` or `beta` by the parameter match against `data/` (NC2, NC3), a dropped case by the case count (NC4), a corrupted *model assembly* with every parameter left intact by `Me == M` and by nothing else (NC8), and a corrupted equilibrium or parameter by the emitted file's own assertions with no repository beside it (NC6, NC7); the unmutated file fires none of them (NC0); the regime check catches a 1e-5 displacement off a complementarity bound and not a 1e-8 one (NC5)
+- boundary: eight mutations, each a single-token change, so this establishes that each check is live and not that the set is complete — a mutation nobody thought of is still a mutation nobody has tried; the mutants are copies and no control here touches the repository, which also means none of them exercises `ci/gates/check_stale_generated.py`, whose own negative control was run separately by editing an engine source file and confirming the gate went red; NC5's floor is the case tolerance itself, so a solver whose regime error is smaller than the tolerance at which its point is accepted at all cannot be caught by that check and is not claimed to be; the controls run against CCOpt v0.1.0 and would need re-running, not merely re-reading, after a version move
+- supersedes: none
+
+Written because the self-review of Phase 2 found that none of the new checks had ever been
+seen to fail, which by this repository's own standard (`research-guardrails/QUALITY.md`,
+and the engine's F-0005, whose licence test was written only after both branches were run)
+means none of them was yet known to be a check.
+
+The result worth keeping is not that everything passed. It is **which** net caught what.
+The round-trip test matches an emitted case to `data/` by its parameters and only then
+compares matrices, so corrupting a parameter and corrupting the model code fail in
+completely different places: the first makes a case unmatchable, the second leaves every
+case matchable and moves `M`. NC8 is the control that separates them, and without it the
+matrix comparison could have been deleted while every other control still passed. That is
+the state a suite drifts into when its controls are never run, and it is why the script is
+committed rather than run once and described.
+
+NC5 is a measurement rather than a pass. Displacing `y_p^3` off its bound at the instance A
+competitive equilibrium changes the segment from type (e) to type (c) as soon as the
+displacement exceeds the tolerance, and not before:
+
+| displacement of `y_p^3` | regime reported | caught |
+|---|---|---|
+| 1e-8, 1e-7, 1e-6 | a, c, e | no |
+| 1e-5, 1e-4, 1e-2 | a, c, c | yes |
+
+So the regime check discriminates at the tolerance, four orders finer than the O(0.1)
+distance to the nearest genuine regime — and the tolerance is also its floor, which is the
+honest reading of what F-0008 claims when it says a solver on the wrong side of a boundary
+would fail it.
 
 ---
 
@@ -271,9 +320,11 @@ should not be able to come away believing this is a replication of published res
    built and has not been offered to anyone.
 3. ~~A second constructed instance.~~ Done — instance B (F-0006). Still uncovered: a peaker
    that does not invest, and a Cournot segment of type (d) or (e).
-4. Open the pull request against CCOpt.jl, or decide not to. The artifact stands on its own
+4. ~~Confirm the new checks fail when they should.~~ Done — F-0010, and the engine's
+   F-0008 for the routes it owns.
+5. Open the pull request against CCOpt.jl, or decide not to. The artifact stands on its own
    as a validation case either way (the plan's own framing), and the engine's F-0007 — the
    `RawStatusString` bug — is worth reporting with it.
-5. Phase 3: the closed-loop model. Its conditions are not an LCP (F-0003), so neither the
+6. Phase 3: the closed-loop model. Its conditions are not an LCP (F-0003), so neither the
    enumeration oracle nor `lcp_residual` carries over unchanged, and its equilibrium is not
    unique in general.

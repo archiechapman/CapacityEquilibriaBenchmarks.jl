@@ -66,6 +66,12 @@ iteration, and it records convergence behaviour, not just the endpoint). After a
 `julia --project scripts/emit_upstream_test.jl`, then
 `python ci/gates/check_stale_generated.py . --write`, then the gates below.
 
+`julia --project scripts/negative_controls.jl` is the other half of the suite and is not run by
+`Pkg.test()`. It corrupts a copy of the emitted file eight ways and fails if the checks that
+should notice do not (`FINDINGS.md` F-0010). Run it after changing `test/runtests.jl`'s round-trip
+testset, the emitter, or `segment_type` — those are the things it is a control for, and a check
+that has never been seen to fail is not yet known to be a check.
+
 <!-- guardrails:begin -->
 ## Portfolio conventions
 

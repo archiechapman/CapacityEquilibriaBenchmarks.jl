@@ -76,10 +76,13 @@ alone by `lcp_residual`, and its max-norm distance from the hand-derived point. 
 | | CCOpt penalty, direct | 3.9e-7 | 3.1e-8 | 1e-5 |
 
 The two relaxation rows of each block are the same method on the same problem, reached with
-and without the MathOptComplements bridges. They agree to better than 1e-10 on every case,
-which is the evidence that the bridges do not alter the model (`FINDINGS.md` F-0008). The
-penalty method is the less accurate of the two methods everywhere, by a factor of two to
-five in the residual, and both are two to three orders of magnitude behind PATH.
+and without the MathOptComplements bridges, and their identical figures are not a rounding
+artefact: the two points are bitwise equal on every case, which the test asserts with `==`
+rather than a tolerance. That is a structural fact about the bridges — they build the same
+lifted model, in the same variable order, that the engine builds by hand — rather than a
+numerical one about two paths converging (`FINDINGS.md` F-0008). The penalty method is the
+less accurate of the two methods everywhere, by a factor of two to five in the residual,
+and both are two to three orders of magnitude behind PATH.
 
 Uniqueness, for every case: the map is monotone (Lemma 1, p.18, and its competitive
 counterpart), the solution is strictly complementary, and its basis is nonsingular — which
@@ -107,7 +110,9 @@ other.
 | Investment criterion: `K_i = Σ_s max(pˢ − ν_i, 0)` | p.15 | holds | holds |
 
 Each property is checked on all four solvers' points separately, never inherited from one
-to another.
+to another. So is the segment-regime classification in the row above, which is the check
+that a solver is on the right side of every complementarity boundary and not merely close
+to the equilibrium.
 
 ## Case 2: open-loop Cournot equilibrium — equations (5)–(6), p.16
 
@@ -158,7 +163,7 @@ julia --project scripts/report_agreement.jl
 julia --project scripts/emit_upstream_test.jl    # rewrites upstream/, which CI checks
 ```
 
-303 tests; about three minutes after precompilation, most of it the enumeration of 2¹⁴
+311 tests; about three minutes after precompilation, most of it the enumeration of 2¹⁴
 and 2¹⁸ patterns. No PATH licence is needed at these sizes. `Manifest.toml` is committed;
 the versions it records are part of the result.
 

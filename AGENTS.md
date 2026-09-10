@@ -72,6 +72,16 @@ should notice do not (`FINDINGS.md` F-0010). Run it after changing `test/runtest
 testset, the emitter, or `segment_type` — those are the things it is a control for, and a check
 that has never been seen to fail is not yet known to be a check.
 
+`julia --project scripts/check_upstream_portable.jl` runs the emitted file in a throwaway project
+built from CCOpt.jl's own `test/Project.toml` and nothing else (`FINDINGS.md` F-0011). Run it
+after any change to the emitter's imports, and before offering the file to anyone: the offer is
+that it adds no test dependency, and that is a claim about someone else's project.
+
+**Nothing in `upstream/` has been sent anywhere.** `upstream/ISSUE.md` is a drafted note and
+`scripts/share_upstream.sh` publishes the file as a public gist and prints the `gh` command that
+would post it. Posting is outward-facing and is the repository owner's decision, not a step in
+any workflow here.
+
 <!-- guardrails:begin -->
 ## Portfolio conventions
 

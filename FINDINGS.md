@@ -279,6 +279,27 @@ distance to the nearest genuine regime — and the tolerance is also its floor, 
 honest reading of what F-0008 claims when it says a solver on the wrong side of a boundary
 would fail it.
 
+
+## F-0011 — The emitted file runs in an environment holding only CCOpt.jl's own declared test dependencies.
+
+- tier: validated
+- status: settled
+- date: 2026-09-10
+- evidence: `scripts/check_upstream_portable.jl`, which reads the dependency list out of the installed CCOpt's `test/Project.toml`, checks that every `using`/`import` in the emitted file names something in that list or CCOpt itself, then builds a throwaway project containing exactly those packages plus CCOpt v0.1.0 and runs the file there — 24 of 24 assertions pass, exit code 0, in a project with no JuMP, no PATHSolver, no `CapacityEquilibria`, no `CapacityEquilibriaBenchmarks`; the file's imports are `Test`, `LinearAlgebra`, `SparseArrays`, `NLPModels`, `MPCCModels`, `CCOpt` and `MadNLP`, and the set outside CCOpt's declaration is empty
+- boundary: CCOpt v0.1.0's `test/Project.toml` as installed in this depot on 2026-09-10, resolved fresh, so this is a statement about that version's declared test environment and not about their CI matrix, their Julia version range, or any other platform — the run was on Julia 1.11.3 on Windows; the throwaway project is a superset of what the file imports, by design, since it mirrors theirs rather than the minimum, so this shows the file needs nothing they lack rather than establishing the minimal set; the failure mode it is built to catch is a package reached transitively, which passes a reading of the import list and fails a run, and the check would go red on that
+- supersedes: none
+
+The offer in `upstream/PULL_REQUEST.md` and `upstream/ISSUE.md` is that the file adds no
+test dependency. Until this was run, that claim rested on reading someone else's
+`Project.toml`, which is not the same thing: an import list can be complete and the file
+still fail to load, if something it touches arrives transitively in the environment it was
+developed in and not in theirs. It does not, and now that has been executed rather than
+inferred.
+
+Worth noting what the check does *not* remove. It runs one Julia version on one operating
+system, and CCOpt's CI does not necessarily match either. If the file is offered and their
+CI is the first thing to see it, that is where a platform difference would surface.
+
 ---
 
 ## What this does not establish
@@ -295,8 +316,9 @@ would fail it.
 - **Nothing about CCOpt.jl on a hard case.** Both instances have a unique, strictly
   complementary solution, and that is the whole of what has been put to either method.
   Degenerate or multiple equilibria — the closed-loop case's territory — have not been.
-- **Nothing about the upstream file being wanted.** It is generated, self-contained and
-  passing (F-0009); no maintainer has been asked whether they want it.
+- **Nothing about the upstream file being wanted.** It is generated, self-contained,
+  passing, and portable to CCOpt's own test environment (F-0009, F-0011). No maintainer
+  has been asked whether they want it, and nothing has been posted anywhere.
 - **Nothing beyond two regime sets.** Between them the instances show Cournot types (a),
   (b), (c) and competitive types (a), (c), (d), (e). A peaker that does not invest
   (Theorem 1 allows it), a Cournot segment of type (d) or (e), or a tie at `S_p` are not
@@ -322,7 +344,9 @@ would fail it.
    that does not invest, and a Cournot segment of type (d) or (e).
 4. ~~Confirm the new checks fail when they should.~~ Done — F-0010, and the engine's
    F-0008 for the routes it owns.
-5. Open the pull request against CCOpt.jl, or decide not to. The artifact stands on its own
+5. Offer the test case to CCOpt.jl, or decide not to. `upstream/ISSUE.md` is the note,
+   `scripts/share_upstream.sh --publish` puts the file where a maintainer can take it, and
+   posting is a deliberate step that has not been taken. The artifact stands on its own
    as a validation case either way (the plan's own framing), and the engine's F-0007 — the
    `RawStatusString` bug — is worth reporting with it.
 6. Phase 3: the closed-loop model. Its conditions are not an LCP (F-0003), so neither the

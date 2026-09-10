@@ -47,7 +47,9 @@ test, and that is the whole of the offer.
 **Fit with the existing suite.** The file follows the conventions of `test/solvers/`: a
 module, as in `test/MOI_wrapper.jl`, importing only `NLPModels`, `MPCCModels`, `MadNLP`,
 `CCOpt` and `Test`, all of which `test/Project.toml` already carries. No JuMP, no new
-dependency, and no dependency on the repository it came from. Data is inlined. Add
+dependency, and no dependency on the repository it came from. That was checked by running,
+not by reading: a throwaway project built from your `test/Project.toml` plus CCOpt and
+nothing else runs the file green (`FINDINGS.md` F-0011). Data is inlined. Add
 `include("test_murphy_smeers_lcp.jl")` to `runtests.jl` beside the other solver tests.
 
 One cost worth flagging rather than letting you discover it: the eight solves take about

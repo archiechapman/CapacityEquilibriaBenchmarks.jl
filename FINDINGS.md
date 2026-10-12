@@ -648,6 +648,45 @@ testset of the corner starts. All are corrected alongside this entry. The
 testset, now "CCOpt leaves a degenerate corner it is started at", also asserts the premise it
 rests on: that the objective falls from the corner.
 
+
+## F-0019 — The regression test, in CCOpt.jl's own layout, passes inside CCOpt's whole test suite on `master` under Julia 1.10, 1.11 and 1.12, formatted to CCOpt's settings and adding one name to its test namespace.
+
+- tier: validated
+- status: settled
+- date: 2026-10-12
+- evidence: `scripts/emit_upstream_test.jl` writes `upstream/ccopt/test/models/murphy-smeers-lcp.jl` and `upstream/ccopt/test/solvers/murphy-smeers.jl`; `scripts/check_ccopt_suite.jl` clones CCOpt.jl at `master` (05dc0a0), places the two files and their two `include` lines, runs CCOpt's `.JuliaFormatter.toml` over them with JuliaFormatter 2.14.0 (unchanged), and runs CCOpt's whole `Pkg.test()` under juliaup channels — passed under Julia 1.10.11, 1.11.3 and 1.12.7, with the testset "Murphy-Smeers LCP Test" reporting 24 of 24 in each log; `test/runtests.jl`, testset "the same test in CCOpt.jl's layout is the same model, and still solves it", loads both files into a namespace holding `Test`, `CCOpt` and `MadNLP`, runs the solver file there, asserts that `MurphySmeersLCP` is the only name added, and repeats the single file's round trip; `scripts/negative_controls.jl`, NC0L and NC9 to NC11, all behaving as expected
+- boundary: one CCOpt revision, on Windows only, where CCOpt's CI also runs Linux and macOS; Julia 1.12.6 could not run CCOpt's suite at all on this machine, because precompiling the `Markdown` standard library under `Pkg.test`'s flags overflowed the stack in Base's annotated-string printing when output was redirected — a Julia defect, which 1.12.7 does not show, and which the check now reports as inconclusive rather than as a failure; JuliaFormatter is unpinned in CCOpt's own pre-commit hook, so "formatted to CCOpt's settings" means under 2.14.0, the version closest to CCOpt's own files; the failure mode is a CCOpt change to `test/runtests.jl` that moves the include anchors, which stops the check rather than misplacing the files
+- supersedes: none — extends F-0011 from CCOpt's test dependencies to CCOpt's test suite
+
+F-0011 established that the single file runs beside CCOpt's declared test dependencies. A
+pull request delivers something different: files in CCOpt's layout, included into one
+namespace with CCOpt's own test models, run by `Pkg.test()` under every Julia version
+CCOpt's CI uses. This checks that directly, by doing it.
+
+**The layout.** CCOpt's `test/runtests.jl` includes problem constructors from
+`test/models/` and then testsets from `test/solvers/`, all at the top level of one
+namespace. The model file therefore wraps the spliced model, the oracle and the cases in
+`module MurphySmeersLCP`, so that generic names such as `lcp_residual` and `build` cannot
+collide with anything of CCOpt's; the solver file follows `test/solvers/penalty.jl` and
+`relaxation.jl`, one testset per method. NC11 leaks a name to the top level on purpose and
+the namespace assertion catches it.
+
+**The formatter.** CCOpt's pre-commit hook runs whatever JuliaFormatter is installed, and
+neither major version leaves CCOpt's own repository unchanged: 2.14.0 would change 51 lines
+in 11 files, mostly trailing semicolons added since CCOpt's own formatting commit, and
+1.0.x would change 260 lines in 23. So 2.14.0, pinned in `scripts/format/`, is the version
+the emitter formats with, and the check requires the emitted files to be unchanged by it.
+Formatting re-wraps a few spliced lines, so the layout files are no longer byte-for-byte
+the repository's source, unlike the single file; the round trip compares what they compute
+rather than their text, and NC10 shows it still catches a corrupted assembly.
+
+**One check corrected on the way.** The suite check first reported Julia 1.12 as failing
+"only with the test". That was wrong twice over: the run had failed loading `Pkg`, before
+any test started, and the comparison run on untouched CCOpt came later, against a cache the
+first run had partly built. The check now distinguishes a run whose tests never started,
+retries it once and reports it as inconclusive, and requires a passing run to contain this
+test's own summary line.
+
 ---
 
 ## What this does not establish
@@ -666,8 +705,9 @@ rests on: that the objective falls from the corner.
   CCOpt gets it right about half the time, but no other MPCC solver has been run on it, so
   there is no basis for saying whether that is good, bad or ordinary.
 - **Nothing about any upstream artifact being wanted.** All three are generated,
-  self-contained, passing and portable to CCOpt's own test environment (F-0009, F-0011,
-  F-0015, F-0017). Whether CCOpt.jl's maintainers want any of them is theirs to say.
+  self-contained, passing and portable to CCOpt's own test environment, and the regression
+  test passes inside CCOpt's suite (F-0009, F-0011, F-0015, F-0017, F-0019). Whether
+  CCOpt.jl's maintainers want any of them is theirs to say.
 - **Nothing beyond two regime sets.** Between them the instances show Cournot types (a),
   (b), (c) and competitive types (a), (c), (d), (e). A peaker that does not invest
   (Theorem 1 allows it), a Cournot segment of type (d) or (e), or a tie at `S_p` are not
@@ -692,5 +732,5 @@ rests on: that the objective falls from the corner.
 4. The monolithic joint system, if wanted. `src/best_response_mpcc.jl` records why it is
    not a mechanical translation of (16), and F-0014 why it cannot be offered upstream
    without the deviation check attached.
-5. Offer the upstream files to CCOpt.jl, with the engine's F-0007, the `RawStatusString`
-   bug, reported alongside.
+5. Offer the upstream files to CCOpt.jl, with the engine's fix for the `RawStatusString`
+   bug (its F-0007 and F-0009) alongside.

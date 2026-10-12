@@ -1,11 +1,11 @@
-# Negative controls for the checks that guard the emitted upstream file.
+# Negative controls for the checks that guard the emitted upstream test.
 #
 #     julia --project scripts/negative_controls.jl
 #
 # A test that has never been seen to fail is not yet known to be a test. `test/runtests.jl`
-# asserts that the emitted file reproduces the in-repo model; this script breaks the
-# emitted file on purpose, in eight different ways, and reports whether the check meant to
-# catch each one actually does. It exits nonzero if any control goes uncaught.
+# asserts that the emitted file, and its CCOpt-layout form, reproduce the in-repo model;
+# this script breaks copies of them on purpose and reports whether the check meant to catch
+# each break actually does. It exits nonzero if any control goes uncaught.
 #
 # Nothing here touches the repository. Every mutation is applied to a copy under a
 # temporary directory, and the copy's module is renamed so that mutants cannot collide
@@ -23,6 +23,7 @@
 # pass, which is the state a suite drifts into when its controls are never run.
 
 using CapacityEquilibriaBenchmarks, CapacityEquilibria
+using Test, CCOpt, MadNLP
 import TOML
 using Printf
 
@@ -219,6 +220,82 @@ record("NC7 corrupted parameter, upstream copy alone",
        "the emitted file's own `z ≈ case.z`",
        own_tests_fail(mutant("LiveQ", [A_ALPHA => " alpha = [20.0, 15.0, 10.5],"];
                              strip_tests = false)))
+
+# --- NC9-NC11: the same test in CCOpt.jl's layout --------------------------------------------
+#
+# `upstream/ccopt/test/` holds the model file and the solver file a pull request would add.
+# They are loaded the way CCOpt's `runtests.jl` loads its own, into one namespace holding
+# `Test`, `CCOpt` and `MadNLP`. The targets below are as the formatter writes them.
+
+const LAYOUT = joinpath(REPO, "upstream", "ccopt", "test")
+const LAYOUT_MODEL = joinpath(LAYOUT, "models", "murphy-smeers-lcp.jl")
+const LAYOUT_SOLVERS = joinpath(LAYOUT, "solvers", "murphy-smeers.jl")
+const LAYOUT_Z = "z = [7.0, 8.0, 7.0, 4.0, 0.0, 8.0, 8.0, 8.0, 2.0, 0.0, 0.0, 4.0, 2.0, 1.0],"
+
+"""
+    layout_mutant(tag, mutations; run_tests) -> (sandbox, own_tests_failed)
+
+The layout's model file with `mutations` applied (first occurrence of each), loaded into a
+fresh namespace like CCOpt's; with `run_tests`, the solver file is then included too, and
+whether its testsets failed is reported.
+"""
+function layout_mutant(tag, mutations; run_tests::Bool)
+    body = read(LAYOUT_MODEL, String)
+    for (old, new) in mutations
+        occursin(old, body) || error("mutation target not found for $tag:\n$old")
+        body = replace(body, old => new, count = 1)
+    end
+    path = joinpath(SCRATCH, "layout_$tag.jl")
+    write(path, body)
+    sandbox = Module(:CCOptTestNamespace)
+    Core.eval(sandbox, :(using Test, CCOpt, MadNLP))
+    Base.include(sandbox, path)
+    failed = false
+    if run_tests
+        try
+            Base.include(sandbox, LAYOUT_SOLVERS)
+        catch
+            failed = true
+        end
+    end
+    return sandbox, failed
+end
+
+top_level_names(sandbox) =
+    setdiff(names(sandbox; all = true), names(Module(:CCOptTestNamespace); all = true))
+
+println("\n=== NC0L: the unmutated layout ===")
+let (sb, failed) = layout_mutant("Clean", Pair{String,String}[]; run_tests = true)
+    r = roundtrip_report(sb.MurphySmeersLCP)
+    println("  own testsets failed? ", failed, "   round-trip fires? ", r.any,
+            "   top-level names: ", top_level_names(sb))
+    record("NC0L unmutated layout", "own testsets pass, round trip silent, one name",
+           !failed && !r.any && top_level_names(sb) == [:MurphySmeersLCP])
+end
+
+println("\n=== NC9: layout, inlined equilibrium corrupted, caught by its own testsets ===")
+let (sb, failed) = layout_mutant("Z", [LAYOUT_Z => replace(LAYOUT_Z, "[7.0, 8.0" => "[7.001, 8.0")];
+                                 run_tests = true)
+    r = roundtrip_report(sb.MurphySmeersLCP)
+    record("NC9 layout, corrupted equilibrium", "its own testsets, and round-trip `case.z`",
+           failed && r.by_z)
+end
+
+println("\n=== NC10: layout, assembly corrupted, parameters intact ===")
+let (sb, _) = layout_mutant("Asm", [ASSEMBLY => "M[r, ix_y(i, s)] = beta"]; run_tests = false)
+    r = roundtrip_report(sb.MurphySmeersLCP)
+    record("NC10 layout, corrupted model code", "round-trip `Me == M`", r.by_M && !r.by_match)
+end
+
+println("\n=== NC11: layout, a helper leaked to the top level of CCOpt's namespace ===")
+let (sb, _) = layout_mutant("Leak", ["end # module MurphySmeersLCP" =>
+                                     "end # module MurphySmeersLCP\nconst CASES = MurphySmeersLCP.CASES"];
+                            run_tests = false)
+    leaked = top_level_names(sb)
+    println("  top-level names: ", leaked)
+    record("NC11 layout, name leaked", "only `MurphySmeersLCP` at the top level",
+           leaked != [:MurphySmeersLCP])
+end
 
 # --- summary ---------------------------------------------------------------------------------
 

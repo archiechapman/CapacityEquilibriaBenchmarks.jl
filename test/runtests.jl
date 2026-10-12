@@ -665,4 +665,44 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
                   lcp_residual(M, q, z_hand).worst
         end
     end
+
+    @testset "the same test in CCOpt.jl's layout is the same model, and still solves it" begin
+        # The two files under `upstream/ccopt/test/` are what a pull request would add.
+        # CCOpt's `runtests.jl` includes model files and then solver files into one
+        # namespace that already holds `Test`, `CCOpt` and `MadNLP`; this does the same in a
+        # fresh module, so the solver file's testsets run here exactly as they would there.
+        layout = joinpath(@__DIR__, "..", "upstream", "ccopt", "test")
+        sandbox = Module(:CCOptTestNamespace)
+        Core.eval(sandbox, :(using Test, CCOpt, MadNLP))
+        Base.include(sandbox, joinpath(layout, "models", "murphy-smeers-lcp.jl"))
+        Base.include(sandbox, joinpath(layout, "solvers", "murphy-smeers.jl"))
+        emitted = sandbox.MurphySmeersLCP
+
+        # The model file exposes one name at the top level, so it cannot collide with
+        # anything else in their suite.
+        @test setdiff(names(sandbox; all = true), names(Module(:CCOptTestNamespace); all = true)) ==
+              [:MurphySmeersLCP]
+
+        # The same round trip as the single file: every in-repo case matched by its
+        # parameters, the matrices rebuilt exactly, the equilibria and tolerances unchanged.
+        @test length(emitted.CASES) == length(INSTANCES) * length(MS_VARIANTS)
+        for tag in INSTANCES, variant in MS_VARIANTS
+            data = load_ms_instance(instance_path(tag))
+            matching = [c for c in emitted.CASES
+                        if c.variant === variant && c.S == data.S && c.beta == data.beta &&
+                           c.alpha == data.alpha && c.K == data.K && c.nu == data.nu]
+            @test length(matching) == 1
+            case = only(matching)
+            M, q, _ = ms_lcp(data, variant)
+            z_hand = load_ms_expected(data, expected_path(tag), variant)
+            Me, qe = emitted.ms_lcp_arrays(case.S, case.beta, case.alpha, case.K,
+                                           case.nu, case.variant)
+            @test Me == M
+            @test qe == q
+            @test case.z == z_hand
+            @test case.tol == Float64(TOML.parsefile(expected_path(tag))["tolerance"])
+            @test emitted.lcp_residual(M, q, z_hand).worst ==
+                  lcp_residual(M, q, z_hand).worst
+        end
+    end
 end

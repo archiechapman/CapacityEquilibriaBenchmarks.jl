@@ -6,7 +6,7 @@
 path = "upstream/test_murphy_smeers_lcp.jl"
 sources = ["data/", "src/murphy_smeers.jl", "scripts/emit_upstream_test.jl", "../CapacityEquilibria.jl/src/lcp_nlp.jl", "../CapacityEquilibria.jl/src/pairing.jl"]
 regenerate = "julia --project scripts/emit_upstream_test.jl"
-source_hash = "d4dad3720e0432ad9435d2041a56beae4b6be15fc598d7c1aa0b161130615920"
+source_hash = "be6ecc9d7fbce830184a1a999d3c645ad816d7ae1575dee56867f5097e61017a"
 artifact_hash = "df9ad05842c29179df21aae9ffcafd36018075f76b05732e305e43c8a3c59993"
 
 [[artifact]]
@@ -22,3 +22,17 @@ sources = ["data/", "src/murphy_smeers_closed_loop.jl", "src/best_response_mpcc.
 regenerate = "julia --project scripts/emit_hard_case.jl"
 source_hash = "0c8442e6718b3dfbf0bc54492db63f13b3f78c6eb895b50881a6e3d7cfa20139"
 artifact_hash = "0422f9513c19c7314084a58793ad4407db14db4879f660628b34f7a4c58eea92"
+
+[[artifact]]
+path = "upstream/ccopt/test/models/murphy-smeers-lcp.jl"
+sources = ["data/", "src/murphy_smeers.jl", "scripts/emit_upstream_test.jl", "../CapacityEquilibria.jl/src/lcp_nlp.jl", "../CapacityEquilibria.jl/src/pairing.jl", "scripts/format/Manifest.toml", "upstream/ccopt/.JuliaFormatter.toml"]
+regenerate = "julia --project scripts/emit_upstream_test.jl"
+source_hash = "007d2677936233f9d7da132edf705f202fa5c29e9f59eed69c2c8205c615f0b2"
+artifact_hash = "28f5945a65062ae35c1b2c813eb21b450ec60f4076ffbc931511a3751c392f4b"
+
+[[artifact]]
+path = "upstream/ccopt/test/solvers/murphy-smeers.jl"
+sources = ["data/", "src/murphy_smeers.jl", "scripts/emit_upstream_test.jl", "../CapacityEquilibria.jl/src/lcp_nlp.jl", "../CapacityEquilibria.jl/src/pairing.jl", "scripts/format/Manifest.toml", "upstream/ccopt/.JuliaFormatter.toml"]
+regenerate = "julia --project scripts/emit_upstream_test.jl"
+source_hash = "007d2677936233f9d7da132edf705f202fa5c29e9f59eed69c2c8205c615f0b2"
+artifact_hash = "67b60e0470af7b299d40b264107898ab7fffecf52209ffa44d9edbdeba09651d"

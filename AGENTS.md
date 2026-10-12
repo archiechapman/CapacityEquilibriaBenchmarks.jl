@@ -35,7 +35,9 @@ decision log. Both are checked by the gates in the synced section below.
   of `src/` and the engine's `src/lcp_nlp.jl` and `src/pairing.jl` between `# emit:<tag>:begin`/`:end`
   markers. Moving or deleting a marker stops the emitter rather than shrinking its output. Each file is
   registered in `generated.toml` and round-trip checked against the in-repository model by
-  `test/runtests.jl` (D-0001, F-0009).
+  `test/runtests.jl` (D-0001, F-0009). `emit_upstream_test.jl` also writes the regression test in CCOpt.jl's
+  layout under `upstream/ccopt/test/`, formatted by the pinned JuliaFormatter in `scripts/format/` with
+  CCOpt's settings in `upstream/ccopt/.JuliaFormatter.toml` (F-0019).
 - Nothing here depends on an application repository. Cases here are published models; a case that needs an
   unpublished mechanism to make sense does not belong here.
 - Commit `Manifest.toml`. This is a reproducible study, not a library, and the resolved versions are part of
@@ -59,11 +61,17 @@ not just the endpoint). After any model or data change, rerun the three emitters
 `python ci/gates/check_stale_generated.py . --write`, then the gates below.
 
 `julia --project scripts/negative_controls.jl` is the other half of the suite and is not run by
-`Pkg.test()`. It corrupts a copy of the emitted test file eight ways and fails if the checks that should
-notice do not (F-0010). Run it after changing the round-trip testset, an emitter, or `segment_type`.
+`Pkg.test()`. It corrupts copies of the emitted test file and of its CCOpt-layout form and fails if the
+checks that should notice do not (F-0010, F-0019). Run it after changing a round-trip testset, an emitter, or
+`segment_type`.
 
 `julia --project scripts/check_upstream_portable.jl` runs the emitted files in a throwaway project built from
 CCOpt.jl's own `test/Project.toml` and nothing else (F-0011). Run it after any change to an emitter's imports.
+
+`julia scripts/check_ccopt_suite.jl [REV] [CHANNEL ...]` places the CCOpt-layout files in a clone of CCOpt.jl
+at REV (default `master`), checks their formatting, and runs CCOpt's whole test suite under each juliaup
+channel (default 1.10, release and 1.12) (F-0019). Run it before offering the files, and after a CCOpt
+release.
 
 Anything sent to CCOpt.jl's maintainers is the repository owner's decision, not a step in any workflow here.
 

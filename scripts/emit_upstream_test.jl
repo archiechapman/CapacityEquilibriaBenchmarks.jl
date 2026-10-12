@@ -1,8 +1,17 @@
-# Emit the self-contained test file offered to CCOpt.jl.
+# Emit the open-loop test case offered to CCOpt.jl, in two forms.
 #
 #     julia --project scripts/emit_upstream_test.jl
 #
-# DECISIONS.md D-0001: the upstream artifact is generated, never hand-written, because a
+# 1. `upstream/test_murphy_smeers_lcp.jl`: one self-contained file, runnable anywhere
+#    CCOpt's test dependencies are installed.
+# 2. `upstream/ccopt/test/models/murphy-smeers-lcp.jl` and
+#    `upstream/ccopt/test/solvers/murphy-smeers.jl`: the same test in CCOpt.jl's own layout,
+#    where problem constructors live in `test/models/` and testsets in `test/solvers/`, all
+#    included into one namespace by their `test/runtests.jl`. Formatted with JuliaFormatter
+#    under CCOpt's own settings (`upstream/ccopt/.JuliaFormatter.toml`), using the pinned
+#    formatter in `scripts/format/`.
+#
+# DECISIONS.md D-0001: the upstream artifacts are generated, never hand-written, because a
 # file copied once by hand is a file that stops matching the model that validated it the
 # first time either is corrected. What this script writes into `upstream/` is therefore
 # assembled from three sources and nothing else:
@@ -34,6 +43,10 @@ import TOML
 const REPO = normpath(joinpath(@__DIR__, ".."))
 const DATADIR = joinpath(REPO, "data")
 const OUT = joinpath(REPO, "upstream", "test_murphy_smeers_lcp.jl")
+const LAYOUT = joinpath(REPO, "upstream", "ccopt")
+const LAYOUT_MODEL = joinpath(LAYOUT, "test", "models", "murphy-smeers-lcp.jl")
+const LAYOUT_SOLVERS = joinpath(LAYOUT, "test", "solvers", "murphy-smeers.jl")
+const FORMAT_ENV = joinpath(REPO, "scripts", "format")
 const ENGINE = normpath(joinpath(dirname(pathof(CapacityEquilibria)), ".."))
 
 """
@@ -225,4 +238,162 @@ end # module TestMurphySmeersLCP""")
     println("wrote ", relpath(OUT, REPO), " (", countlines(OUT), " lines)")
 end
 
+const LAYOUT_MODEL_HEADER = """
+# Murphy and Smeers' open-loop capacity-expansion equilibria: four small linear
+# complementarity problems with solutions known independently of any solver, as MPCCs.
+#
+# GENERATED FILE — DO NOT EDIT. Produced by `scripts/emit_upstream_test.jl` in
+# CapacityEquilibriaBenchmarks.jl (https://github.com/archiechapman/CapacityEquilibriaBenchmarks.jl),
+# which copies the model and the residual check from the sources that repository validates,
+# formats them to CCOpt.jl's settings, and inlines the data. The derivations, the
+# enumeration and the PATH results are there.
+#
+# Two constructed instances, each under price-taking and open-loop Cournot behaviour, give
+# square LCPs `0 ≤ z ⟂ Mz + q ≥ 0` of 14 and 18 variables with monotone `M`. Each solution
+# was derived by hand, is the only one an exhaustive enumeration of complementarity
+# patterns finds, and is reached by PATH to 1e-9. The paper (F. H. Murphy and Y. Smeers,
+# Operations Research 53(4), 646–661, 2005) publishes no numerical example, so the
+# instances are constructed and no number here is the authors'.
+#
+# Everything is inside a module so that its helpers (`lcp_residual`, `build`, ...) cannot
+# collide with names elsewhere in the suite; `test/solvers/murphy-smeers.jl` reaches them as
+# `MurphySmeersLCP.<name>`.
+
+"""
+
+"""
+    layout_model() -> String
+
+`test/models/murphy-smeers-lcp.jl`: the same model, data and oracle as the single file,
+wrapped in a module and with no testsets.
+"""
+function layout_model()
+    io = IOBuffer()
+    print(io, LAYOUT_MODEL_HEADER)
+    println(io, """
+\"\"\"
+    MurphySmeersLCP
+
+The four Murphy–Smeers cases as `CASES`, and `build(case)`, which returns `(M, q, mpcc, ix)`:
+the LCP data, the case as an `MPCCModel`, and the indices of the LCP's `x` in a solver's
+point. The LCP's `x` and its residual `w = Mx + q` are the two sides of each
+complementarity, paired by index.
+\"\"\"
+module MurphySmeersLCP
+
+import LinearAlgebra
+import SparseArrays
+import NLPModels
+import MPCCModels
+
+$(splice(joinpath(ENGINE, "src", "lcp_nlp.jl"), "lcp_nlp"))
+
+$(splice(joinpath(REPO, "src", "murphy_smeers.jl"), "ms_lcp_arrays"))
+
+$(splice(joinpath(ENGINE, "src", "pairing.jl"), "lcp_residual"))
+
+# The cases, with each equilibrium in the layout
+# `z = (x_p, x_b, y_p^1..S, y_b^1..S, λ_p^1..S, λ_b^1..S)`.
+const CASES = (""")
+    for tag in ("a", "b"), variant in (:competitive, :open_loop_cournot)
+        println(io, case_literal(tag, variant))
+    end
+    println(io, """)
+
+function build(case)
+    M, q = ms_lcp_arrays(case.S, case.beta, case.alpha, case.K, case.nu, case.variant)
+    n = length(q)
+    nlp = LCPVerticalModel(M, q)
+    mpcc = MPCCModels.MPCCModel(nlp, collect(1:n), collect(n+1:2n))
+    return M, q, mpcc, 1:n
+end
+
+end # module MurphySmeersLCP""")
+    return String(take!(io))
+end
+
+"""
+    layout_solvers() -> String
+
+`test/solvers/murphy-smeers.jl`: the testsets, in the shape of CCOpt's own
+`test/solvers/relaxation.jl` and `test/solvers/penalty.jl`.
+"""
+function layout_solvers()
+    return """
+# Generated by `scripts/emit_upstream_test.jl` in CapacityEquilibriaBenchmarks.jl; see
+# `test/models/murphy-smeers-lcp.jl`. Each case has a unique, strictly complementary
+# solution known in advance, so both methods are held to the point itself, not only to
+# their own status. The tolerances were fixed before either method was run on these
+# problems and are several hundred times looser than what both achieve; the nearest wrong
+# active set is O(0.1) or more away.
+@testset "Murphy-Smeers LCP Test" begin
+    @testset "Relaxation: \$(case.name)" for case in MurphySmeersLCP.CASES
+        M, q, mpcc, ix = MurphySmeersLCP.build(case)
+        ccopt_opts = CCOpt.RelaxationOptions(; print_level = MadNLP.ERROR)
+        solver = CCOpt.RelaxationSolver(
+            mpcc;
+            solver_opts = ccopt_opts,
+            print_level = MadNLP.ERROR,
+        )
+
+        stats = CCOpt.solve_homotopy!(solver)
+
+        @test stats.status == MadNLP.SOLVE_SUCCEEDED
+        z = stats.solution[ix]
+        @test MurphySmeersLCP.lcp_residual(M, q, z).worst < case.tol
+        @test z ≈ case.z atol = case.tol
+    end
+
+    @testset "Penalty: \$(case.name)" for case in MurphySmeersLCP.CASES
+        M, q, mpcc, ix = MurphySmeersLCP.build(case)
+        ccopt_opts = CCOpt.PenaltyOptions{Float64}(; print_level = MadNLP.ERROR)
+        solver = CCOpt.PenaltySolver(
+            mpcc;
+            solver_opts = ccopt_opts,
+            print_level = MadNLP.ERROR,
+        )
+
+        stats = CCOpt.solve_homotopy!(solver)
+
+        @test stats.status == MadNLP.SOLVE_SUCCEEDED
+        z = stats.solution[ix]
+        @test MurphySmeersLCP.lcp_residual(M, q, z).worst < case.tol
+        @test z ≈ case.z atol = case.tol
+    end
+end
+"""
+end
+
+"""
+    format_layout(paths)
+
+Format the layout files in place with the pinned JuliaFormatter in `scripts/format/`,
+which picks up CCOpt's settings from `upstream/ccopt/.JuliaFormatter.toml`. Run in a
+subprocess so that the formatter never enters this project's own environment.
+"""
+function format_layout(paths)
+    script = """
+        import Pkg
+        Pkg.instantiate(; io = devnull)
+        using JuliaFormatter
+        format(ARGS)
+    """
+    run(`$(Base.julia_cmd()) --startup-file=no --project=$FORMAT_ENV -e $script $paths`)
+    return nothing
+end
+
+function emit_layout()
+    for (path, text) in ((LAYOUT_MODEL, layout_model()), (LAYOUT_SOLVERS, layout_solvers()))
+        mkpath(dirname(path))
+        open(path, "w") do io
+            write(io, replace(text, "\r\n" => "\n"))
+        end
+    end
+    format_layout([LAYOUT_MODEL, LAYOUT_SOLVERS])
+    for path in (LAYOUT_MODEL, LAYOUT_SOLVERS)
+        println("wrote ", relpath(path, REPO), " (", countlines(path), " lines)")
+    end
+end
+
 emit()
+emit_layout()

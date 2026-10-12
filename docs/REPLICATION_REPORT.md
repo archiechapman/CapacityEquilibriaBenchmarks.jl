@@ -305,6 +305,10 @@ against the in-repo model by the test suite, and checked by
 `scripts/check_upstream_portable.jl` to run in a project holding only CCOpt's own declared
 test dependencies (F-0009, F-0011, F-0015, F-0017).
 
+The first is also generated in CCOpt.jl's own layout, as a model file and a solver file
+under `upstream/ccopt/test/`, and passes inside CCOpt's whole test suite on its `master`
+under Julia 1.10, 1.11 and 1.12, formatted to CCOpt's settings (F-0019).
+
 The second is not a regression test and is not offered as one. Its subject is that a
 complementarity system can have a larger solution set than the problem it represents, so a
 solver can be correct and its answer meaningless.
@@ -357,7 +361,7 @@ julia --project scripts/report_agreement.jl
 julia --project=docs docs/make.jl                # the tutorial, which re-asserts cases 1 to 5 on instance A
 ```
 
-927 tests, in about seven minutes after precompilation, most of it the enumeration of 2¹⁴
+977 tests, in about seven minutes after precompilation, most of it the enumeration of 2¹⁴
 and 2¹⁸ patterns and compiling the three upstream files, which the suite includes and runs.
 `RUN_CLOSED_LOOP=true` adds the multi-start diagonalization study. No PATH licence is
 needed at these sizes. `Manifest.toml` is committed; the versions it records are part of

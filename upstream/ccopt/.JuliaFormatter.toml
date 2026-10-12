@@ -1,0 +1,11 @@
+# CCOpt.jl's formatter settings, copied from its repository root (last changed there in f3d8ab5) so that
+# scripts/emit_upstream_test.jl formats the files beside it the way CCOpt.jl's pre-commit hook would.
+
+# Configuration file for JuliaFormatter.jl
+# For more information, see: https://domluna.github.io/JuliaFormatter.jl/stable/config/
+
+always_for_in = true
+always_use_return = true
+margin = 92
+remove_extra_newlines = true
+short_to_long_function_def = true

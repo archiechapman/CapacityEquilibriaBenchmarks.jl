@@ -6,19 +6,19 @@
 path = "upstream/test_murphy_smeers_lcp.jl"
 sources = ["data/", "src/murphy_smeers.jl", "scripts/emit_upstream_test.jl", "../CapacityEquilibria.jl/src/lcp_nlp.jl", "../CapacityEquilibria.jl/src/pairing.jl"]
 regenerate = "julia --project scripts/emit_upstream_test.jl"
-source_hash = "7a76b5d8d913b4f0514c9fd16f3c49edb6fe84c7253e306792eeebc197ba773a"
+source_hash = "d4dad3720e0432ad9435d2041a56beae4b6be15fc598d7c1aa0b161130615920"
 artifact_hash = "df9ad05842c29179df21aae9ffcafd36018075f76b05732e305e43c8a3c59993"
 
 [[artifact]]
 path = "upstream/closed_loop_demonstration.jl"
 sources = ["data/", "src/murphy_smeers_closed_loop.jl", "scripts/emit_closed_loop_demo.jl", "../CapacityEquilibria.jl/src/lcp_nlp.jl", "../CapacityEquilibria.jl/src/pairing.jl"]
 regenerate = "julia --project scripts/emit_closed_loop_demo.jl"
-source_hash = "8da73bac7c1db4141d3d3f8d1a5cc1c24afaec98a7b1bebd015f0398f359055d"
+source_hash = "9847b151053bcfa2649ff50aeb36037d34887267ed7d428a355d1f38a3ae1070"
 artifact_hash = "8fb81e58fea8d15ec3ecd6aa0743e0e9f6800fb0a253b78049437c7a87e4b550"
 
 [[artifact]]
 path = "upstream/hard_case_near_tie.jl"
 sources = ["data/", "src/murphy_smeers_closed_loop.jl", "src/best_response_mpcc.jl", "scripts/emit_hard_case.jl", "../CapacityEquilibria.jl/src/lcp_nlp.jl", "../CapacityEquilibria.jl/src/pairing.jl"]
 regenerate = "julia --project scripts/emit_hard_case.jl"
-source_hash = "aca2ce7c21b87803254f889c8158a523569f51376b0662fc86069b8877d49767"
+source_hash = "0c8442e6718b3dfbf0bc54492db63f13b3f78c6eb895b50881a6e3d7cfa20139"
 artifact_hash = "0422f9513c19c7314084a58793ad4407db14db4879f660628b34f7a4c58eea92"

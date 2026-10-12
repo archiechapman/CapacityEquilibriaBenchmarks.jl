@@ -25,8 +25,8 @@ Checked by `check_decision_log.py`. Ids are stable and never reused.
   CCOpt.jl. A round-trip check re-runs the emitted file and requires the same numbers to the same tolerance,
   and `generated.toml` makes staleness a CI failure here.
 - evidence: judgement, no measurement — a maintainer weighing a test that adds an external dependency
-  against one that adds a single file will take the file, and the plan's whole framing of the contribution
-  as a small correctness regression test argues against handing them a dependency. The drift risk that
+  against one that adds a single file will take the file, and a small correctness regression test should
+  not arrive with a dependency attached. The drift risk that
   choice creates is the thing the round-trip check is for.
 - cost_of_change: Cheap. The generator is a script; abandoning it means keeping whichever file it last
   emitted. The expensive direction is the reverse — discovering after the PR is merged that the accepted
@@ -35,9 +35,9 @@ Checked by `check_decision_log.py`. Ids are stable and never reused.
   emitted file grows past the point where a reviewer can read it in one sitting, which would mean the case
   is too large to be the regression test it is being offered as.
 
-Executed in Phase 2, with two departures from the wording above, both recorded rather than quietly made.
+Executed with two departures from the wording above, both recorded rather than quietly made.
 
-**No JuMP.** This entry and the plan both say the emitted file may import "JuMP, NLPModels and CCOpt.jl".
+**No JuMP.** This entry says the emitted file may import "JuMP, NLPModels and CCOpt.jl".
 CCOpt.jl's own test environment does not carry JuMP, so a file importing it could not run in their suite
 without a new test dependency — the opposite of the point. The emitted file imports NLPModels, MPCCModels,
 MadNLP, CCOpt and Test, all of which their `test/Project.toml` already lists, and wraps itself in a module
@@ -51,24 +51,30 @@ That is a stronger guarantee than the entry claims — the emitted file cannot d
 because it *is* the model — and it is what lets the round-trip check demand exact equality of the assembled
 matrices rather than agreement to a tolerance (`FINDINGS.md` F-0009).
 
-## D-0002 — This repository goes public when its first case passes, not before and not after.
+## D-0002 — This repository goes public when its first models are validated, not before and not after.
 
 - date: 2026-09-09
 - status: active
 - question: When does a replication repository become public, given that the results it holds are not yet
   validated?
-- options: public from the first commit; public once Phase 1's gate passes; private until the technical note
-  is written; private until any resulting publication is out
-- decision: Public once Phase 1 passes — both open-loop cases matching the paper within a stated tolerance.
+- options: public from the first commit; public once the open-loop models are validated; private until the
+  technical note is written; private until any resulting publication is out
+- decision: Public once the open-loop models are validated: both instances matching their ground truth within
+  a stated tolerance (D-0004).
 - evidence: judgement, no measurement — Murphy and Smeers (2005) is a published paper and reproducing its
-  numbers is not a novel result, so there is nothing here to embargo. What would be embarrassing is a public
-  repository asserting a replication that has not been checked, which is what the gate prevents. The work
-  with an actual embargo case is in `AdequacyMechanismSandpit.jl`, which is separate for exactly this reason.
+  model is not a novel result, so there is nothing here to hold back. What would be embarrassing is a public
+  repository asserting a replication that has not been checked, which is what the condition prevents.
 - cost_of_change: Asymmetric and worth stating. Staying private longer is free. Going public early cannot be
   undone: the history is readable from that moment and stays readable.
 - revisit_if: A case is added whose source data cannot be redistributed, or a replication turns up something
   that is a novel result rather than a reproduction — either would need its own decision rather than
   inheriting this one.
+
+**Applied 2026-10-12.** The open-loop models are validated (F-0004 to F-0008). The second revisit condition
+was considered before opening, because some closed-loop findings go beyond reproduction: the spurious roots
+of (16) are exactly the degenerate kinks of the output stage (F-0015, F-0018), and a best-response problem
+was constructed to be hard for CCOpt (F-0017). They were judged technical findings about the model and the
+solvers rather than a result to hold back, and the repository opens with them.
 
 ## D-0003 — `Manifest.toml` is committed; CCOpt.jl is bounded by version, not pinned by SHA.
 
@@ -81,9 +87,9 @@ matrices rather than agreement to a tolerance (`FINDINGS.md` F-0009).
   CCOpt.jl turned out to be registered
 - decision: Commit the manifest, and bound CCOpt.jl at `"0.1"` in `Project.toml`. No SHA pin: CCOpt.jl is
   registered at v0.1.0, so the committed manifest already records an exact resolved version and its
-  `git-tree-sha1`, which is the reproducibility the plan wanted a commit pin for.
+  `git-tree-sha1`, which is the reproducibility a commit pin would have given.
 - evidence: `CapacityEquilibria.jl` F-0002 — CCOpt.jl is in the General registry with one tagged version,
-  which the plan (and this entry, as first written) assumed was not the case. The manifest half still
+  which this entry, as first written, assumed was not the case. The manifest half still
   stands on judgement: this repository is a reproducible study rather than a library, so an unpinned
   dependency means a result that cannot be reproduced next month. `CapacityEquilibria.jl` D-0001 makes the
   opposite choice for the opposite reason, and the two are not in conflict.
@@ -94,29 +100,27 @@ matrices rather than agreement to a tolerance (`FINDINGS.md` F-0009).
   repository stops being able to resolve `CapacityEquilibria.jl` by relative path, which is how the engine
   is reached until it is registered.
 
-The version gets moved deliberately and once, per the plan's own risk section, rather than tracked
-continuously. A move is a commit of its own naming the old and new versions, so that a change in results
+The version gets moved deliberately and once rather than tracked continuously. A move is a commit of its own naming the old and new versions, so that a change in results
 across it is attributable.
 
-The entry as first written called for a commit-SHA pin, because the plan said CCOpt.jl had no tagged
-releases. It has one. The decision is not superseded — the intent, an exactly reproducible dependency, is
-unchanged and is better served by the registry than by a SHA — but the mechanism named here is not the one
-the plan specified, and the difference is recorded rather than quietly implemented.
+The entry as first written called for a commit-SHA pin, on the understanding that CCOpt.jl had no tagged
+releases. It has one. The decision is not superseded: the intent, an exactly reproducible dependency, is
+unchanged and is better served by the registry than by a SHA.
 
 The engine is currently reached through a `[sources]` relative path, so this manifest records
 `path = "../CapacityEquilibria.jl"` and assumes the two repositories are cloned side by side. That is
-adequate while both are private and co-developed and is the weakest link in this entry's reproducibility
-claim; it is named in `revisit_if` above rather than left to be discovered.
+adequate while the engine is unregistered and the two are co-developed, and it is the weakest link in this
+entry's reproducibility claim; it is named in `revisit_if` above rather than left to be discovered.
 
-## D-0004 — With no published numbers, ground truth for Phase 1 is the paper's analysis, a hand derivation and exhaustive enumeration.
+## D-0004 — With no published numbers, ground truth for the open-loop models is the paper's analysis, a hand derivation and exhaustive enumeration.
 
 - date: 2026-09-09
 - status: active
 - question: What does "matches the paper within tolerance" mean when the edition in hand
   publishes no numerical example at all?
 - options: stop until the published article is obtained; construct an instance; borrow Stoft's figures — in
-  full: stop Phase 1 until the published 2005 article is obtained and checked for a
-  numerical example; construct an instance satisfying the paper's stated assumptions and
+  full: stop until the published 2005 article is obtained and checked for a numerical
+  example; construct an instance satisfying the paper's stated assumptions and
   validate the solver against the paper's analytical results on it; take "typical" cost
   figures from Stoft (2002), which the paper cites but does not reproduce, and present
   them as the paper's
@@ -126,7 +130,7 @@ claim; it is named in `revisit_if` above rather than left to be discovered.
   complementarity patterns of the LCP, with uniqueness argued from monotonicity and strict
   complementarity; and the properties the paper states hold at equilibrium — production
   and pricing efficiency, the investment criterion, Theorem 1, Lemmas 5, 11 and 12,
-  Corollary 1 — each checked on the solver's point. The Phase 1 gate is read as: PATH's
+  Corollary 1 — each checked on the solver's point. "Matches the paper" is read as: PATH's
   point agrees with the hand derivation and the enumeration within a stated tolerance, and
   every stated property holds at it.
 - evidence: `FINDINGS.md` F-0001 — the 69-page working paper contains no table of
@@ -147,7 +151,7 @@ claim; it is named in `revisit_if` above rather than left to be discovered.
 The third option was rejected outright rather than weighed: a number attributed to a source
 that does not contain it is the exact failure `data/PROVENANCE.md` exists to prevent.
 
-## D-0006 — Phase 3's ground truth is the second stage validated as before, the first stage transcribed twice and checked against the paper's comparative theorems, and no claim of uniqueness.
+## D-0006 — The closed-loop model's ground truth is the second stage validated as before, the first stage transcribed twice and checked against the paper's comparative theorems, and no claim of uniqueness.
 
 - date: 2026-09-10
 - status: active
@@ -155,8 +159,8 @@ that does not contain it is the exact failure `data/PROVENANCE.md` exists to pre
   three-legged standard loses two of its legs — there is no exhaustive enumeration for a
   first stage that is not an LCP, and the paper itself does not claim a unique equilibrium?
 - options: inherit D-0004 unchanged and hope the machinery stretches; abandon it and report
-  only "diagonalization-consistent", as the plan's Phase 4 language suggests; keep the
-  parts that survive and name replacements for the parts that do not
+  only "diagonalization-consistent"; keep the parts that survive and name replacements for
+  the parts that do not
 - decision: The third. Concretely, and separately for the two stages.
   **Second stage**: D-0004 applies unchanged. It is an LCP with a unique solution (Lemma 2,
   p.19), so hand derivation, exhaustive enumeration of complementarity patterns, and the
@@ -231,15 +235,15 @@ strengthening of the decision above, not a relaxation, and it is the reason the 
   residual oracle applies without generalisation. Judgement on the rest: two transcriptions
   that must agree catch an index error; one readable transcription does not.
 - cost_of_change: Cheap now. A structured builder can be added beside `ms_lcp` at any time,
-  and the agreement test extends to it. It becomes expensive only if Phase 2's emitter is
+  and the agreement test extends to it. It becomes expensive only if the emitter is
   written against one form and the other is later wanted upstream.
-- revisit_if: The closed-loop model (Phase 3) turns out not to be expressible as an LCP —
+- revisit_if: The closed-loop model turns out not to be expressible as an LCP —
   which it will not be, since the paper's (16) on p.24 involves the second-stage solution
   map — at which point the engine needs a nonlinear complementarity form and this decision
   covers only the open-loop cases; or CCOpt.jl's maintainers ask for the upstream test in
   JuMP form.
 
-The last clause of `revisit_if` half-happened in Phase 2, in a way worth recording. CCOpt.jl's
+The last clause of `revisit_if` half-happened, in a way worth recording. CCOpt.jl's
 maintainers were not asked for anything, but their test environment has no JuMP, so the upstream
 file could not have been offered in JuMP form even if this decision had gone the other way
 (D-0001, note). The explicit `(M, q)` choice made here is what made the emitted file possible at

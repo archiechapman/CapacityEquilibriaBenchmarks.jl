@@ -4,9 +4,8 @@
 and page in its source, recorded here alongside the value rather than in a commit message
 or a comment that can drift out of sync with the code.*
 
-`AGENTS.md` names this directory as the repository's one dangerous area, and the replication
-plan calls the transcription "the single point of highest risk in the whole plan", because
-every later comparison is downstream of these numbers being right. `test/runtests.jl` checks
+`AGENTS.md` names this directory as the repository's one dangerous area, because every later
+comparison is downstream of these numbers being right. `test/runtests.jl` checks
 that every `.toml` file in this directory is named in this document; it cannot check that
 the numbers are right, which is what the rules below are for.
 

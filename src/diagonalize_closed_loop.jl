@@ -1,15 +1,12 @@
-# Diagonalization for the closed-loop Cournot model: the route the plan asks for.
+# Diagonalization for the closed-loop Cournot model.
 #
 # Fix one player's capacity, solve the other's long-run problem for its best response, swap,
-# and repeat until nothing moves. It is the standard way to attack an EPEC and it is what
-# Phase 3 of `docs/ms_ccopt_replication_plan.md` specifies.
+# and repeat until nothing moves. It is the standard way to attack an EPEC.
 #
-# It is built here *after* `enumerate_closed_loop.jl` has already found the equilibria, and
-# deliberately so. The plan treats diagonalization as the way to find the answer; with the
-# answer already in hand from a solver-free enumeration, this becomes something more useful
-# — an independent route whose behaviour can be compared against a known destination. The
-# plan asks for exactly that comparison: "document convergence behavior alongside the final
-# numbers, not just the endpoint".
+# It is built *after* `enumerate_closed_loop.jl` has already found the equilibria, and
+# deliberately so. With the answer in hand from a solver-free enumeration, diagonalization
+# is an independent route whose behaviour, not just its endpoint, can be compared against a
+# known destination.
 #
 # WHY THE BEST RESPONSE IS NOT A SOLVER CALL. Player i's long-run objective (15), p.24 is
 # piecewise quadratic in its own capacity and, by Lemma 13, p.31, only piecewise *convex*.
@@ -155,7 +152,7 @@ Returns
   - `period`: the cycle length when `status` is `:cycled`, otherwise `0`
 
 Convergence is judged by the step size, never by a round count, and a repeat of an earlier
-iterate is detected and reported rather than run out to the limit. The plan asks for both:
+iterate is detected and reported rather than run out to the limit. Both matter:
 diagonalization is sensitive to ordering and starting point and does not always converge,
 so a result reported without its convergence behaviour is a weaker claim than one with it.
 """

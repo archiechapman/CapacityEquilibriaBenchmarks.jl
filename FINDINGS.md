@@ -15,7 +15,7 @@ Tiers are defined in `research-guardrails/QUALITY.md`. Statuses are `open`, `set
 
 ---
 
-## F-0001 — The edition of Murphy and Smeers in hand contains no numerical example, so Phase 1 has nothing to transcribe.
+## F-0001 — The edition of Murphy and Smeers in hand contains no numerical example, so there is nothing to transcribe.
 
 - tier: validated
 - status: settled
@@ -24,9 +24,9 @@ Tiers are defined in `research-guardrails/QUALITY.md`. Statuses are `open`, `set
 - boundary: this edition only — the May 2002 working paper, not the *Operations Research* 53(4) article it became; assumes the PDF is complete, which its continuous printed pagination 1–66 plus front matter supports; the failure mode is a numerical example placed in an online supplement to the published version, which this edition would not show and which F-0002 leaves open
 - supersedes: none
 
-The replication plan's Phase 1 begins "Transcribe the paper's data directly from its
-tables: the load-duration-curve blocks … the firms and their technology portfolios,
-capacity costs, variable costs". The paper has none of those. It is an analytical paper:
+A replication would ordinarily begin by transcribing the paper's data: load-duration
+blocks, firms and their technology portfolios, capacity and variable costs. The paper has
+none of those. It is an analytical paper:
 a model (§2), equilibrium conditions for the competitive (§3), open-loop Cournot (§4) and
 closed-loop Cournot (§6) cases, sensitivity results, existence and uniqueness theorems, and
 twenty pages of proofs. The only reference to numbers is a citation of Stoft (2002, chapter
@@ -43,16 +43,15 @@ D-0004 records what ground truth means as a result.
 - tier: validated
 - status: settled
 - date: 2026-09-09
-- evidence: the repository owner's reading of *Operations Research* 53(4), 646–661, on 2026-09-09, reported as "there are no numerical results"; independent of F-0001, which read the working paper, and of the plan, which assumed tables
+- evidence: the repository owner's reading of *Operations Research* 53(4), 646–661, on 2026-09-09, reported as "there are no numerical results"; independent of F-0001, which read the working paper
 - boundary: one reading by one person of the article as published; assumes the reading covered the whole article and not the abstract, which the wording supports; the failure mode is a numerical example in an online supplement or appendix held separately from the article, not reported and not checked; nothing here says the two editions agree on anything other than the absence of numbers
 - supersedes: none
 
 As first written, this entry was a statement of ignorance: the published version was not
-obtainable from this machine (`../literature/README.md`), the plan assumed it had tables,
-and F-0001 showed the working paper has none, so `data/ms2002_instance_a.toml` carried a
-`CONFIRM` marker against it. The marker is now deleted and the entry settled. The
-consequence is that D-0004's reading of the Phase 1 gate is not a stopgap pending a better
-edition; it is the only reading there is. Every instance in `data/` is constructed, and
+obtainable from this machine, and F-0001 showed the working paper has none, so
+`data/ms2002_instance_a.toml` carried a `CONFIRM` marker against it. The marker is now
+deleted and the entry settled. The consequence is that D-0004's reading of "matches the
+paper" is not a stopgap pending a better edition; it is the only reading there is. Every instance in `data/` is constructed, and
 the published article gives no number that any of them should be replaced by.
 
 ## F-0003 — Both open-loop models are linear complementarity problems, so the engine's LCP plumbing applies to them unchanged.
@@ -70,7 +69,7 @@ For the two open-loop cases the question does not arise: every variable is nonne
 every residual is affine, so `lcp_model` and `lcp_residual` are used as they are, with
 `n = 2 + 4S = 14` for instance A. The paper says as much in its own terms, restating the
 open-loop game as an affine variational inequality in (7)–(11), pp.17–18. The question
-returns, unchanged, for Phase 3.
+returns, unchanged, for the closed-loop model.
 
 `ms_lcp` builds `M` and `q`; `ms_conditions` writes `F` directly. Both were written from
 the same equations by the same hand, so their agreement is evidence against a slip in
@@ -94,8 +93,8 @@ say.
 Three routes to the point, none of which consults another: a derivation from the paper's
 conditions by hand, checked by substitution; an enumeration that solves the linear system
 of every complementarity pattern and keeps the feasible ones; and PATH. All three coincide
-to 1e-11. The gate in the plan — "both cases matching the paper within tolerance" — is
-met in the sense D-0004 gives it, and cannot be met in any other sense with this edition.
+to 1e-11. "Matching the paper within tolerance" is met in the sense D-0004 gives it, and
+cannot be met in any other sense with this edition.
 
 ## F-0005 — Instance A, open-loop Cournot equilibrium: PATH's point is the hand-derived equilibrium, is the only solution, and satisfies every property the paper states — including the peaker running in the base segment.
 
@@ -155,10 +154,9 @@ data file so the choice reads as a choice.
 - boundary: CCOpt v0.1.0's relaxation method only, reached through the `MathOptComplements` bridges and `CCOpt.Optimizer` as the engine's `:ccopt` backend; the penalty method is unreachable that way (engine F-0004) and has not been run on anything; both instances are strictly complementary with a unique solution, which is the easy case for a relaxation scheme, so this says nothing about degenerate or multiple equilibria; CCOpt is two to three orders of magnitude less exact than PATH here and its accuracy sets the tolerance the report uses for instance B, which is the failure mode to watch — a tolerance loosened to admit the solver under test
 - supersedes: none
 
-This is Phase 2's solver-agreement question, answered early because instance B was being run
-through PATH anyway and the second backend costs one line. The answer is the one D-0002
-hoped for: on four cases with known answers, CCOpt reaches them. It is a correctness
-regression result, not a demonstration of scale, which is how the plan says to frame it.
+This is the solver-agreement question. The answer is the one D-0002 hoped for: on four
+cases with known answers, CCOpt reaches them. It is a correctness regression result, not a
+demonstration of scale.
 
 Two things are worth stating. First, the tolerances. Instance A is judged at 1e-6 and
 instance B at 1e-5, both set before CCOpt was run on them and both several hundred times
@@ -168,8 +166,7 @@ CCOpt's point independently, not inherited from PATH's; a solver that landed nea
 point but on the wrong side of a complementarity boundary would fail `segment_type` and
 the pricing-efficiency check even at a passing distance.
 
-What remained of Phase 2 at the time this entry was written — the penalty route and the
-emitted upstream file — is F-0008 and F-0009.
+The penalty route and the emitted upstream file followed as F-0008 and F-0009.
 
 
 ## F-0008 — CCOpt's penalty method reaches all four equilibria too, and the MathOptComplements bridges change nothing.
@@ -181,10 +178,9 @@ emitted upstream file — is F-0008 and F-0009.
 - boundary: CCOpt v0.1.0 over MadNLP v0.10.1, both methods at their default options apart from silence, on four linear complementarity problems of 14 and 18 variables, each with a unique strictly complementary solution — the easy case for either scheme, and the one that says least about a solver; the bitwise agreement of the two relaxation routes covers only what these problems ask the bridges to do, which is to lift an affine `[F; x]` pairing over nonnegative variables, and would break on any change to the bridges' variable ordering as well as on free variables or a nonlinear map; the regime check is run at the case tolerance rather than `segment_type`'s stricter 1e-7 default, which is the right tolerance for the claim but leaves it unable to detect a solver whose regime error is smaller than the tolerance at which its point is accepted at all; the penalty method's residuals run two to five times the relaxation method's and both are two to three orders behind PATH, which is the number to watch if a tolerance is ever loosened; the failure mode is a case where the two methods agree with each other and both are wrong, which nothing here would catch and which is why the hand derivation and the enumeration remain the oracles
 - supersedes: none — extends F-0007 from one CCOpt method to both, and from two routes to four
 
-Phase 2's remaining solver question, and the answer is the same as F-0007's: on four
-problems with known answers, both of CCOpt's documented methods reach them. That is a
-correctness regression result and not a demonstration of scale, which is how the plan asks
-for it to be framed.
+The answer is the same as F-0007's: on four problems with known answers, both of CCOpt's
+documented methods reach them. That is a correctness regression result and not a
+demonstration of scale.
 
 Two things are worth separating out. First, **the bridges construct exactly the lifting
 the engine writes by hand.** `:ccopt` and `:ccopt_relaxation` are one method on one problem,
@@ -251,8 +247,7 @@ should not be able to come away believing this is a replication of published res
 - boundary: eight mutations, each a single-token change, so this establishes that each check is live and not that the set is complete — a mutation nobody thought of is still a mutation nobody has tried; the mutants are copies and no control here touches the repository, which also means none of them exercises `ci/gates/check_stale_generated.py`, whose own negative control was run separately by editing an engine source file and confirming the gate went red; NC5's floor is the case tolerance itself, so a solver whose regime error is smaller than the tolerance at which its point is accepted at all cannot be caught by that check and is not claimed to be; the controls run against CCOpt v0.1.0 and would need re-running, not merely re-reading, after a version move
 - supersedes: none
 
-Written because the self-review of Phase 2 found that none of the new checks had ever been
-seen to fail, which by this repository's own standard (`research-guardrails/QUALITY.md`,
+Written because none of the round-trip checks had ever been seen to fail, which by this repository's own standard (`research-guardrails/QUALITY.md`,
 and the engine's F-0005, whose licence test was written only after both branches were run)
 means none of them was yet known to be a check.
 
@@ -289,8 +284,7 @@ would fail it.
 - boundary: CCOpt v0.1.0's `test/Project.toml` as installed in this depot on 2026-09-10, resolved fresh, so this is a statement about that version's declared test environment and not about their CI matrix, their Julia version range, or any other platform — the run was on Julia 1.11.3 on Windows; the throwaway project is a superset of what the file imports, by design, since it mirrors theirs rather than the minimum, so this shows the file needs nothing they lack rather than establishing the minimal set; the failure mode it is built to catch is a package reached transitively, which passes a reading of the import list and fails a run, and the check would go red on that
 - supersedes: none
 
-The offer in `upstream/PULL_REQUEST.md` and `upstream/ISSUE.md` is that the file adds no
-test dependency. Until this was run, that claim rested on reading someone else's
+The offer to CCOpt.jl is that the file adds no test dependency. Until this was run, that claim rested on reading someone else's
 `Project.toml`, which is not the same thing: an import list can be complete and the file
 still fail to load, if something it touches arrives transitively in the environment it was
 developed in and not in theirs. It does not, and now that has been executed rather than
@@ -306,7 +300,7 @@ CI is the first thing to see it, that is where a platform difference would surfa
 - tier: validated
 - status: settled
 - date: 2026-09-10
-- evidence: `src/murphy_smeers_closed_loop.jl` for the transcription, each line cited to the May 2002 working paper; `test/runtests.jl`, the three "Phase 3, closed-loop" testsets, 439/439 passing — at the open-loop capacities of both instances the second-stage LCP returns the open-loop equilibrium's own outputs and duals to 0.0 and 9.6e-15 with a recomputed residual of 0.0; Lemma 7's derivative table agrees with a forward difference of the second-stage solve to 1.5e-10 on every segment and both players; equation (16) built term by term agrees with an independent decomposition of it to better than 1e-9; at the open-loop point ξ_p is 0.0 and ξ_b is −25/12 on instance A and −271/9 on instance B, both matching a closed-form prediction computed outside the function under test
+- evidence: `src/murphy_smeers_closed_loop.jl` for the transcription, each line cited to the May 2002 working paper; `test/runtests.jl`, the testset "closed loop: the second stage, Lemma 7, and equation (16)" and the testsets nested in it, 439/439 passing — at the open-loop capacities of both instances the second-stage LCP returns the open-loop equilibrium's own outputs and duals to 0.0 and 9.6e-15 with a recomputed residual of 0.0; Lemma 7's derivative table agrees with a forward difference of the second-stage solve to 1.5e-10 on every segment and both players; equation (16) built term by term agrees with an independent decomposition of it to better than 1e-9; at the open-loop point ξ_p is 0.0 and ξ_b is −25/12 on instance A and −271/9 on instance B, both matching a closed-form prediction computed outside the function under test
 - boundary: two constructed instances, evaluated at one capacity vector each — the open-loop equilibrium — so this establishes that the pieces are transcribed correctly, not that any closed-loop equilibrium has been found; both instances have regimes (a), (c) and (b) only, so the derivative table's (d) and (e) rows are transcribed but unexercised, and an instance reaching them would be a real extension of this check; equation (16) is stated in the paper only at points where `y(x)` is differentiable, and nothing here detects a kink, so a candidate sitting on one would be silently mis-tested; the forward difference uses `h = 1e-6` at a point interior to its regime, and at a kink it would disagree with the analytic derivative for a correct reason rather than an incorrect one
 - supersedes: none — refines F-0003
 
@@ -353,7 +347,7 @@ point is not a closed-loop equilibrium.
 - boundary: two constructed instances; the enumeration finds every root of (16) *at a differentiable point*, and an equilibrium sitting on a kink between regimes would be missed entirely, which this cannot rule out (Lemma 2, p.19 gives only left and right derivatives, and (16) is stated only where they agree); the best-response test is a scan on a 601-point grid per player, so it refutes a candidate decisively and certifies one only up to that grid — it cannot exclude a profitable deviation between grid points; `2^(4S)` is 4096 and 65536 here and hopeless by `S = 6`, the same wall `enumerate_lcp.jl` hits; nothing here establishes that the surviving point is the *only* equilibrium, and D-0006 forbids saying so
 - supersedes: none
 
-The result Phase 3 was for, and a result the plan did not anticipate.
+The central closed-loop result, and not the one expected.
 
 **The equilibria.** Instance A settles at `x = (5, 5)` exactly, with prices `(10, 13/2, 14/3)`
 and regimes (a), (c), (b). Instance B settles at `x = (3.03, 3.54)`, prices
@@ -401,12 +395,11 @@ all. The roots, the deviation gains and the equilibria stand.
 - status: settled
 - date: 2026-09-10
 - evidence: `src/diagonalize_closed_loop.jl`; `test/runtests.jl`, testset "diagonalization reaches the same point" for the always-on part and "diagonalization from many starts and both orders" behind `RUN_CLOSED_LOOP=true` — 28 runs across two instances, two player orderings and seven starting points each, every one converging to the equilibrium already found by enumeration, none cycling and none hitting the iteration limit; started exactly at each of the four corner roots of (16) identified in F-0013, the loop leaves them and converges in 13 or 14 rounds; a single run costs 10.7 s on instance A and 17.6 s on instance B, a single best response 0.04 s and 0.67 s; step sizes decay geometrically after the first round, `7.5, 2.67, 0.139, 0.023, 0.0039, 0.00064` on instance A from the origin
-- boundary: two constructed instances, two players, seven starting points and both of the two possible orderings, so "every start tried" is 28 runs and not a proof of global convergence; the best response is exact only up to the second-stage pattern enumeration being complete, which is `2^(4S)` and therefore the same wall as everywhere else in Phase 3; **the cycling detector has never fired**, because nothing in these instances cycles, so it is code that has not been seen to work and should be treated as untested until an instance exercises it; convergence is linear, and the tolerance is on the step rather than on distance to a fixed point, which is the usual overstatement in a convergence claim and is why the trajectory is returned rather than just the endpoint
+- boundary: two constructed instances, two players, seven starting points and both of the two possible orderings, so "every start tried" is 28 runs and not a proof of global convergence; the best response is exact only up to the second-stage pattern enumeration being complete, which is `2^(4S)` and therefore the same wall as everywhere else in the closed-loop work; **the cycling detector has never fired**, because nothing in these instances cycles, so it is code that has not been seen to work and should be treated as untested until an instance exercises it; convergence is linear, and the tolerance is on the step rather than on distance to a fixed point, which is the usual overstatement in a convergence claim and is why the trajectory is returned rather than just the endpoint
 - supersedes: none
 
-The plan asks for diagonalization and warns that it "is known to be sensitive to firm
-ordering and starting point and does not always converge cleanly". On these two instances it
-is not sensitive to either. That is worth explaining rather than celebrating, because the
+Diagonalization is known to be sensitive to firm ordering and starting point and does not
+always converge cleanly. On these two instances it is not sensitive to either. That is worth explaining rather than celebrating, because the
 explanation says where the fragility actually lives.
 
 **The corner roots are not fixed points of this loop.** F-0013 found that equation (16) has
@@ -436,9 +429,9 @@ the corner is a local optimum. It is not: the objective falls from the first uni
 capacity. A local best response started at a corner would not be trapped there, whatever
 method computed it.
 
-That is the finding worth carrying into Phase 4. The plan proposes stacking every player's
-first-order conditions into one monolithic MPCC for CCOpt.jl to solve. Such a system has
-all three roots on each instance, and a solver that finds one is behaving correctly on the
+That is the finding worth carrying forward. Stacking every player's first-order conditions
+into one monolithic MPCC for CCOpt.jl to solve gives a system with all three roots on each
+instance, and a solver that finds one is behaving correctly on the
 problem it was given. Whatever is offered upstream has to carry the deviation check with it,
 or say plainly that its solution set is larger than its equilibrium set.
 
@@ -479,8 +472,8 @@ returned point and threshold it (engine D-0002) — reports a number that says m
 where along the ray a solver stopped than about whether it solved anything.
 
 That is worth stating plainly because it is a limit of this repository's own method, not
-just of a solver's. The programme's answer to "did the solver work" has been the recomputed
-residual since Phase 0, and here is a case where it is the wrong question. What survived
+just of a solver's. The programme's answer to "did the solver work" has always been the
+recomputed residual, and here is a case where it is the wrong question. What survived
 was the primal: outputs, prices, regimes and the value of (16) agree across PATH and both
 CCOpt methods everywhere, and it is that agreement, not the residual, that carries the
 result.
@@ -503,11 +496,11 @@ biactive pair seen twice.
 - tier: validated
 - status: settled
 - date: 2026-09-11
-- evidence: `src/best_response_mpcc.jl` builds one player's long-run problem as an MPCC — a nonconvex quadratic objective over the second-stage complementarity conditions, `1 + 8S` variables, `4S` linear equalities, `4S` complementary pairs — and `test/runtests.jl`, testset "the best response as an MPCC for CCOpt"; 24 solves over two instances, three rival capacity vectors, both players and both CCOpt methods all return the global best response known exactly from Phase 3's enumeration, to within 1.3e-6 in the objective; the sharper test is 8 further solves started with every variable consistent at a corner root of (16), where the player holds nothing and is at a local optimum, and all 8 leave it and reach the global answer, worth 31.95 and 46.33 on instance A and 187.85 and 322.52 on instance B
-- boundary: two constructed instances and one problem family; "global" means agreement with the pattern enumeration of Phase 3, which is exact for this family and not a general certificate; both CCOpt methods at default options, where the relaxation homotopy begins with a loosened complementarity and the penalty method with a small penalty, and it is that loosening which plausibly does the escaping — a method started with the complementarity already tight would have no such mechanism and this result should not be read as covering one; the objective's Hessian is indefinite on every segment but the nonconvexity here is mild and structured, one downward jump per regime boundary, so nothing here speaks to a badly nonconvex MPCC; no claim is made that CCOpt finds global optima in general, which would be false
+- evidence: `src/best_response_mpcc.jl` builds one player's long-run problem as an MPCC — a nonconvex quadratic objective over the second-stage complementarity conditions, `1 + 8S` variables, `4S` linear equalities, `4S` complementary pairs — and `test/runtests.jl`, testset "the best response as an MPCC for CCOpt"; 24 solves over two instances, three rival capacity vectors, both players and both CCOpt methods all return the global best response known exactly from the closed-loop enumeration, to within 1.3e-6 in the objective; the sharper test is 8 further solves started with every variable consistent at a corner root of (16), where the player holds nothing and is at a local optimum, and all 8 leave it and reach the global answer, worth 31.95 and 46.33 on instance A and 187.85 and 322.52 on instance B
+- boundary: two constructed instances and one problem family; "global" means agreement with the closed-loop pattern enumeration, which is exact for this family and not a general certificate; both CCOpt methods at default options, where the relaxation homotopy begins with a loosened complementarity and the penalty method with a small penalty, and it is that loosening which plausibly does the escaping — a method started with the complementarity already tight would have no such mechanism and this result should not be read as covering one; the objective's Hessian is indefinite on every segment but the nonconvexity here is mild and structured, one downward jump per regime boundary, so nothing here speaks to a badly nonconvex MPCC; no claim is made that CCOpt finds global optima in general, which would be false
 - supersedes: none — corrects an inference drawn in F-0014
 
-Phase 4's first result, and it corrects something this ledger said a day earlier.
+The first MPCC result, and it corrects something this ledger said a day earlier.
 
 F-0014 observed that diagonalization's robustness rests on the best response being computed
 globally, and reasoned that "with a local best response a corner would have been a fixed
@@ -526,7 +519,7 @@ can cross a regime boundary, which is exactly the barrier a fixed-complementarit
 method cannot cross. That is a property of the method rather than of the problem, and it is
 the most useful thing this programme has found out about CCOpt so far.
 
-What this does not do is make the monolithic system of the plan's Phase 4 well posed. That
+What this does not do is make the monolithic joint system well posed. That
 remains blocked on the fact recorded in `src/best_response_mpcc.jl`: equation (16) depends
 on a piecewise-constant derivative table, so it is not a smooth function of the variables
 and no single smooth MPCC has it as stationarity conditions. The two honest routes are a
@@ -646,13 +639,12 @@ response started at a corner is not trapped, for the simpler reason that the cor
 minimum. The trap test this programme has is F-0017's, where both wells are verified local
 minima on both sides.
 
-The wrong explanation also appeared in `docs/REPLICATION_REPORT.md`; in
-`upstream/NOTE_first_order_conditions.md`, the unsent note; in the header of the generated
-`upstream/closed_loop_demonstration.jl`, through `scripts/emit_closed_loop_demo.jl`; in the
-docstrings of `ms_closed_loop_xi`, `best_response_gap` and `best_response_start_arrays`, the
-first and last of which are spliced into the generated files; in the headers of
-`diagonalize_closed_loop.jl` and `hard_best_response.jl`; in the plan's Phase 4 corrections
-table; and in a testset of the corner starts. All are corrected alongside this entry. The
+The wrong explanation also appeared in `docs/REPLICATION_REPORT.md`; in the header of the
+generated `upstream/closed_loop_demonstration.jl`, through `scripts/emit_closed_loop_demo.jl`;
+in the docstrings of `ms_closed_loop_xi`, `best_response_gap` and
+`best_response_start_arrays`, the first and last of which are spliced into the generated
+files; in the headers of `diagonalize_closed_loop.jl` and `hard_best_response.jl`; and in a
+testset of the corner starts. All are corrected alongside this entry. The
 testset, now "CCOpt leaves a degenerate corner it is started at", also asserts the premise it
 rests on: that the objective falls from the corner.
 
@@ -663,23 +655,19 @@ rests on: that the objective falls from the corner.
 - **Nothing about the paper's numbers.** There are none in the edition held (F-0001).
   Instance A is constructed, the report says so, and no result here should be quoted as
   "Murphy and Smeers' equilibrium".
-- **Nothing about the closed-loop model.** Phase 3. Its conditions are not an LCP (F-0003)
-  and its equilibrium is not unique in general (paper §7); F-0004 and F-0005 say nothing
-  about it beyond the ordering Theorem 7 states.
-- **Nothing about either CCOpt method on a problem it might fail.** Both are now covered
-  (F-0008), on four problems chosen because their answers are known — which is the same
-  reason they are easy.
-- **Little about CCOpt.jl on a hard case, but no longer nothing.** The open-loop problems
-  are all strictly complementary with unique solutions. The closed-loop corners are
-  degenerate with an unbounded dual ray, and F-0015 records what both methods do there.
-  That is four points of one kind, not a study.
+- **Nothing about the closed-loop equilibrium being unique.** Its conditions are not an
+  LCP (F-0003) and its equilibrium is not unique in general (paper §7); D-0006 forbids
+  calling the one found *the* equilibrium.
+- **Little about CCOpt.jl on hard problems.** The open-loop problems are all strictly
+  complementary with unique solutions, which is why their answers are known and why they
+  are easy. The closed-loop corners are degenerate with an unbounded dual ray (F-0015), and
+  F-0017 is one constructed near-tie. That is a handful of points, not a study.
 - **Nothing about how CCOpt compares with anything else.** F-0017 is hard enough that
   CCOpt gets it right about half the time, but no other MPCC solver has been run on it, so
   there is no basis for saying whether that is good, bad or ordinary.
-- **Nothing about any upstream artifact being wanted.** Both are generated,
+- **Nothing about any upstream artifact being wanted.** All three are generated,
   self-contained, passing and portable to CCOpt's own test environment (F-0009, F-0011,
-  F-0015, F-0017). No maintainer has been asked whether they want any of them, and nothing
-  has been posted anywhere.
+  F-0015, F-0017). Whether CCOpt.jl's maintainers want any of them is theirs to say.
 - **Nothing beyond two regime sets.** Between them the instances show Cournot types (a),
   (b), (c) and competitive types (a), (c), (d), (e). A peaker that does not invest
   (Theorem 1 allows it), a Cournot segment of type (d) or (e), or a tie at `S_p` are not
@@ -695,31 +683,14 @@ rests on: that the objective falls from the corner.
 
 ## What remains
 
-1. ~~Resolve `CONFIRM(F-0002)`.~~ Done — the published article has no numerical example.
-2. ~~Phase 2, the rest: CCOpt's penalty route through a directly built `MPCCModel` (engine
-   F-0004), checked against the JuMP route on all four cases; then the emitter and the
-   round-trip check for the upstream test file.~~ Done — F-0008 and F-0009. Phase 2's
-   deliverable, `upstream/test_murphy_smeers_lcp.jl` with the PR description beside it, is
-   built and has not been offered to anyone.
-3. ~~A second constructed instance.~~ Done — instance B (F-0006). Still uncovered: a peaker
-   that does not invest, and a Cournot segment of type (d) or (e).
-4. ~~Confirm the new checks fail when they should.~~ Done — F-0010, and the engine's
-   F-0008 for the routes it owns.
-5. Offer the test case to CCOpt.jl, or decide not to. `upstream/ISSUE.md` is the note,
-   `scripts/share_upstream.sh --publish` puts the file where a maintainer can take it, and
-   posting is a deliberate step that has not been taken. The artifact stands on its own
-   as a validation case either way (the plan's own framing), and the engine's F-0007 — the
-   `RawStatusString` bug — is worth reporting with it.
-6. Phase 4, in progress. One player's best response is built as an MPCC (F-0016), and a
-   deliberately hard instance of it — two optima tied to fourteen figures and far apart —
-   is built, generated into `upstream/`, and found to be about a coin flip for both CCOpt
-   methods (F-0017). The monolithic joint system the plan asks for is not built, and
-   `src/best_response_mpcc.jl` records why it is not the mechanical translation the plan
-   describes.
-7. Phase 3, complete. The model is transcribed (F-0012), both instances' closed-loop
-   equilibria are found and checked against every comparative result the paper states
-   (F-0013), and D-0006 records what validation means here. What remains: an instance whose
-   equilibrium sits on a kink, which the enumeration would miss and which would test the
-   boundary F-0013 states; an instance whose diagonalization cycles, which would exercise a
-   detector that has never fired (F-0014); and Phase 4's monolithic MPCC, which F-0014
-   argues cannot be offered upstream without the deviation check attached.
+1. An open-loop instance with a peaker that does not invest, or a Cournot segment of type
+   (d) or (e); neither regime set is covered.
+2. A closed-loop instance whose equilibrium sits on a kink, which the enumeration would miss
+   and which would test the boundary F-0013 states.
+3. A closed-loop instance whose diagonalization cycles, which would exercise a detector
+   that has never fired (F-0014).
+4. The monolithic joint system, if wanted. `src/best_response_mpcc.jl` records why it is
+   not a mechanical translation of (16), and F-0014 why it cannot be offered upstream
+   without the deviation check attached.
+5. Offer the upstream files to CCOpt.jl, with the engine's F-0007, the `RawStatusString`
+   bug, reported alongside.

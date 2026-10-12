@@ -1,4 +1,4 @@
-# Emit the self-contained demonstration that accompanies the note on first-order conditions.
+# Emit the self-contained demonstration of first-order conditions that admit non-equilibria.
 #
 #     julia --project scripts/emit_closed_loop_demo.jl
 #
@@ -12,8 +12,8 @@
 # capacity game in which the equilibrium conditions have three solutions and only one is an
 # equilibrium, and it shows that a solver can be entirely correct at every step and still
 # return a point that means nothing. That is a statement about the formulation rather than
-# about the solver, which is why it travels as a demonstration with a note rather than as a
-# proposed addition to anyone's `test/` directory.
+# about the solver, which is why it is a demonstration rather than a proposed addition to
+# anyone's `test/` directory.
 #
 # CCOpt does real work in it, and the file turned up a second result while doing so: the
 # spurious roots are exactly the points where the output stage is degenerate, its dual an

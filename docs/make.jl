@@ -13,9 +13,7 @@
 #
 # NOTHING IS DUPLICATED. The replication report, the derivations, the provenance notes and
 # the two ledgers are copied in from their canonical files at build time, and the three
-# generated upstream files are copied in as downloads. None of them is edited here. The
-# plan and the drafted notes to CCOpt.jl's maintainers are deliberately left out: one is a
-# working document and the others are unsent correspondence.
+# generated upstream files are copied in as downloads. None of them is edited here.
 
 using Documenter
 using CapacityEquilibria

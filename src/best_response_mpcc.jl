@@ -1,10 +1,10 @@
-# Phase 4: a player's best response as a genuine MPCC, for CCOpt to solve.
+# A player's best response as a genuine MPCC, for CCOpt to solve.
 #
-# WHY NOT THE MONOLITHIC SYSTEM FIRST, AS THE PLAN ASKS.
+# WHY NOT A MONOLITHIC SYSTEM.
 #
-# The plan describes Phase 4 as stacking every firm's first-order conditions into one system
-# and calling it a mechanical reformulation of Phase 3. It is not mechanical, and the reason
-# is `FINDINGS.md` F-0012: the first-stage condition (16), p.24 depends on `B_i y_j`, the
+# The obvious MPCC formulation of the closed-loop game stacks every firm's first-order
+# conditions into one system, as if that were a mechanical reformulation of (16). It is not
+# mechanical, and the reason is `FINDINGS.md` F-0012: the first-stage condition (16), p.24 depends on `B_i y_j`, the
 # sensitivity of the second-stage equilibrium to capacity, and Lemma 7 (14), p.22 gives that
 # as a *piecewise constant* table indexed by which of five regimes each segment is in. The
 # regime is determined by which complementarities are active. So (16) is not a smooth

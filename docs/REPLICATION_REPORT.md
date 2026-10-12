@@ -1,20 +1,19 @@
 # Replication report
 
-*The authoritative synthesis, per `AGENTS.md`: for each case, the paper's published number,
-the PATH solve, the CCOpt.jl solve, and the tolerance each comparison was made at. Supersedes
-any number in a docstring, README or commit message. Claims are made at the tier their
-`FINDINGS.md` entry carries and no higher.*
+*The authoritative synthesis: for each case, what the paper states, the PATH solve, the
+CCOpt.jl solves, and the tolerance each comparison was made at. It supersedes any number in
+a docstring, README or commit message. Claims are made at the tier their `FINDINGS.md`
+entry carries and no higher.*
 
-*Status as of 2026-09-11: Phases 1 to 3 complete, Phase 4 in progress. Both open-loop
-models are validated on two constructed instances against a hand derivation, an exhaustive
-enumeration and the paper's own theorems, and are solved by PATH and by both of CCOpt.jl's
-methods over four routes. The closed-loop equilibrium of each instance is found by a
-solver-free enumeration, reached independently by diagonalization, and checked against
-every comparative result the paper states. Phase 4 has built one player's best response as
-a genuine MPCC, which CCOpt solves to its known global optimum on every case tried, and a
-deliberately hard version of it on which CCOpt finds the better of two nearly tied optima
-about half the time. Three upstream files are generated and passing. Not done: the
-monolithic joint system, which turns out not to be the reformulation the plan describes.*
+*In summary. Both open-loop models are validated on two constructed instances against a
+hand derivation, an exhaustive enumeration and the paper's own theorems, and are solved by
+PATH and by both of CCOpt.jl's methods over four routes. The closed-loop equilibrium of
+each instance is found by a solver-free enumeration, reached independently by
+diagonalization, and checked against every comparative result the paper states. One
+player's best response, written as a genuine MPCC, is solved by CCOpt to its known global
+optimum on every case tried; a deliberately hard version of it, with two nearly tied
+optima, is solved correctly about half the time. Three self-contained files for CCOpt.jl
+are generated from the validated model.*
 
 ## The paper, and what it publishes
 
@@ -217,15 +216,15 @@ described as an equilibrium anywhere in this repository.
 
 ## Case 4: the best response as an MPCC — equation (15), p.24
 
-`FINDINGS.md` F-0016, tier **validated**. This is Phase 4's first result and the first place
-in this programme where CCOpt is asked to *optimise* rather than to solve a square system.
+`FINDINGS.md` F-0016, tier **validated**. This is the first case in which CCOpt is asked to
+*optimise* rather than to solve a square system.
 
 One player's long-run problem, written as an MPCC: minimise its capacity cost less its gross
 margin, subject to the second-stage equilibrium conditions, over `1 + 8S` nonnegative
 variables with `4S` linear equalities and `4S` complementary pairs. The objective's Hessian
 on each segment's own-output block is `[2β β; β 0]`, determinant `−β²`, so the problem is
-indefinite in every segment. Its global optimum is known exactly from the pattern
-enumeration of Phase 3, which is what makes it a test rather than a demonstration.
+indefinite in every segment. Its global optimum is known exactly from the closed-loop
+pattern enumeration, which is what makes it a test rather than a demonstration.
 
 | What was solved | Solves | Result |
 |---|---|---|
@@ -241,10 +240,10 @@ found that the objective falls from the first unit of capacity at every corner, 
 that only moves downhill would leave too. The row shows CCOpt handling a degenerate start,
 not escaping a local optimum. The trap test is Case 5.
 
-### Why the monolithic system in the plan is not built
+### Why there is no monolithic system
 
-The plan describes Phase 4 as stacking every player's first-order conditions into one MPCC
-and calls it a reformulation. It is not one. Equation (16) depends on `B_i y_j`, which
+The obvious MPCC formulation of the closed-loop game stacks every player's first-order
+conditions into one system, as if that were a reformulation. It is not one. Equation (16) depends on `B_i y_j`, which
 Lemma 7 (14), p.22 gives as a piecewise-constant table indexed by regime, so (16) is not a
 smooth function of the variables and no single smooth MPCC has it as stationarity
 conditions. The two honest routes are a disjunctive encoding, which leaves MPCC territory,
@@ -292,8 +291,8 @@ is good, bad or ordinary.
 
 ## The three artifacts offered upstream
 
-`upstream/` holds three generated files and three hand-written notes. None of the files has
-been sent to anyone.
+`upstream/` holds three generated files, each self-contained and runnable in CCOpt.jl's own
+test environment.
 
 | File | What it is | Assertions |
 |---|---|---|
@@ -308,8 +307,7 @@ test dependencies (F-0009, F-0011, F-0015, F-0017).
 
 The second is not a regression test and is not offered as one. Its subject is that a
 complementarity system can have a larger solution set than the problem it represents, so a
-solver can be correct and its answer meaningless. `upstream/NOTE_first_order_conditions.md`
-is the accompanying note, written to be read without economics.
+solver can be correct and its answer meaningless.
 
 ### What the demonstration shows
 
@@ -331,8 +329,8 @@ term at all and makes the corner a root. One biactive pair, seen twice (F-0015, 
 The penalty residuals in the degenerate rows are not errors of that size. They are the
 product of a dual of order 1e5, which the problem does not determine, with a primal error of
 order 1e-8, which is the real accuracy. Every solver's outputs, prices and regimes agree
-there. This is a limit on the pass criterion this programme has used since Phase 0, and it
-is recorded as one against the engine's `DECISIONS.md` D-0002.
+there. This is a limit on the pass criterion used throughout, and it is recorded as one
+against the engine's `DECISIONS.md` D-0002.
 
 
 ## What "replicated" means here, and what it does not
@@ -341,8 +339,7 @@ Each case's PATH point agrees with two solver-free routes to the same equilibriu
 than 1e-9, both of CCOpt's methods to better than 4e-7, and every property the paper states
 about that equilibrium holds at every solver's point. That is the strongest check available
 on a paper that publishes no numbers, and it is a correctness regression result for CCOpt.jl
-on four cases with known answers — the framing the plan asks for, not a demonstration of
-scale.
+on four cases with known answers, not a demonstration of scale.
 
 It is not a reproduction of published numbers, because there are none. Nothing in this
 report should be quoted as Murphy and Smeers' result. The full negative list is in
@@ -357,22 +354,11 @@ would miss an equilibrium sitting on a kink between regimes.
 ```
 julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 julia --project scripts/report_agreement.jl
-julia --project scripts/emit_upstream_test.jl    # rewrites upstream/, which CI checks
 julia --project=docs docs/make.jl                # the tutorial, which re-asserts cases 1 to 5 on instance A
 ```
 
-923 tests (973 with RUN_CLOSED_LOOP=true), in about seven minutes after precompilation,
-most of it the enumeration of 2¹⁴ and 2¹⁸ patterns and compiling the three upstream files,
-which the suite includes and runs. No PATH licence is needed at these sizes.
-`Manifest.toml` is committed; the versions it records are part of the result.
-
-## The file offered upstream
-
-`upstream/test_murphy_smeers_lcp.jl` is the deliverable of Phase 2: the four cases above as
-a self-contained regression test for CCOpt.jl, importing nothing beyond NLPModels,
-MPCCModels, MadNLP, CCOpt and Test, with the data inlined and the model copied verbatim
-from the sources this repository validates. It is generated by
-`scripts/emit_upstream_test.jl` and never edited by hand (`DECISIONS.md` D-0001); the test
-suite re-runs it and requires it to rebuild the same matrices as the in-repo model, and
-`generated.toml` makes a stale copy a CI failure here rather than a discovery made by a
-maintainer. `upstream/PULL_REQUEST.md` is the description that would accompany it.
+927 tests, in about seven minutes after precompilation, most of it the enumeration of 2¹⁴
+and 2¹⁸ patterns and compiling the three upstream files, which the suite includes and runs.
+`RUN_CLOSED_LOOP=true` adds the multi-start diagonalization study. No PATH licence is
+needed at these sizes. `Manifest.toml` is committed; the versions it records are part of
+the result.

@@ -36,8 +36,8 @@
 # (`segment_type`), and a table lookup. There is no automatic differentiation and no
 # numerical derivative anywhere in the equilibrium conditions.
 #
-# WHAT IS GENUINELY HARDER. Three things, and they are why Phase 3 needs its own notion of
-# ground truth rather than inheriting D-0004's:
+# WHAT IS GENUINELY HARDER. Three things, and they are why the closed-loop model needs its
+# own notion of ground truth rather than inheriting D-0004's:
 #
 #   * The map is not affine in `x`, because the regime — and hence `B` — changes with `x`.
 #     `ms_lcp` and the engine's `lcp_residual` do not apply to the first stage.

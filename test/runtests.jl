@@ -32,7 +32,7 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
 
 @testset "CapacityEquilibriaBenchmarks" begin
 
-    @testset "Phase 0: the engine is reachable and drives both backends" begin
+    @testset "the engine is reachable and drives both backends" begin
         M, q = [2.0 1.0; 1.0 2.0], [-4.0, 1.0]
         build() = lcp_model(M, q)
         path = solve_complementarity(build, :path)
@@ -217,7 +217,7 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
         end
     end
 
-    @testset "Phase 3, closed-loop: the second stage, Lemma 7, and equation (16)" begin
+    @testset "closed loop: the second stage, Lemma 7, and equation (16)" begin
         # The closed-loop model of the paper's section 6 shares its entire second stage
         # with the open-loop Cournot model and differs only in the condition paired with
         # capacity. Nothing here searches for a closed-loop equilibrium; these are the
@@ -307,7 +307,7 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
 
                 # The paper's comparative results, checked against the competitive and
                 # open-loop equilibria already validated at the `validated` tier. These are
-                # the closest thing Phase 3 has to the enumeration oracle Phase 1 had.
+                # the closest thing the closed loop has to the open-loop enumeration oracle.
                 cm = ms_unpack(data, load_ms_expected(data, expected_path(tag), :competitive))
                 @test sum(x_cl) >= sum(ol.x) - tol                       # Theorem 4, p.28
                 @test x_cl[PLAYER_B] >= ol.x[PLAYER_B] - tol             # Theorem 5, p.28
@@ -336,10 +336,10 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
             end
 
             @testset "instance $(uppercase(tag)): the best response as an MPCC for CCOpt" begin
-                # Phase 4. One player's long-run problem, written as a genuine MPCC — a
-                # nonconvex quadratic objective over the second-stage complementarity
-                # conditions — and handed to CCOpt. Its global solution is known exactly
-                # from Phase 3, which is what makes it a test rather than a demonstration.
+                # One player's long-run problem, written as a genuine MPCC — a nonconvex
+                # quadratic objective over the second-stage complementarity conditions —
+                # and handed to CCOpt. Its global solution is known exactly from the
+                # enumeration, which is what makes it a test rather than a demonstration.
                 x_star = load_ms_expected(data, expected_path(tag),
                                           :closed_loop_cournot)[1:2]
 
@@ -424,8 +424,7 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
             end
 
             @testset "instance $(uppercase(tag)): diagonalization reaches the same point" begin
-                # The route the plan asks for, built after the enumeration had already found
-                # the answer, so that it can be compared against a known destination rather
+                # Built after the enumeration had already found the answer, so that it can be compared against a known destination rather
                 # than trusted to define one.
                 #
                 # The best response is computed globally and exactly, by minimising the
@@ -502,10 +501,10 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
     end
 
     if get(ENV, "RUN_CLOSED_LOOP", "false") == "true"
-        @testset "Phase 3: diagonalization from many starts and both orders" begin
+        @testset "diagonalization from many starts and both orders" begin
             # Slow, and off by default: one exact global best response costs a full enumeration
             # of second-stage patterns, and this runs dozens of them. `AGENTS.md` documents the
-            # switch. What it establishes is the plan's own request — convergence *behaviour*,
+            # switch. What it establishes is convergence *behaviour*,
             # not just an endpoint — and in particular that the corner roots of F-0013 are not
             # fixed points of the diagonalization map when the best response is global.
             for tag in INSTANCES
@@ -621,8 +620,8 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
 
     @testset "the emitted upstream file is the same model, and still solves it" begin
         # DECISIONS.md D-0001: what CCOpt.jl's maintainers would hold is generated from
-        # `data/` and from the model sources, never hand-written. This is the round trip
-        # the plan asks for — the emitted copy re-run and required to reproduce the same
+        # `data/` and from the model sources, never hand-written. This is the round trip:
+        # the emitted copy re-run and required to reproduce the same
         # numbers as the in-repo model — and it is what stops the copy drifting once the
         # model behind it is corrected. Staleness of the *file* is a separate question,
         # answered by `ci/gates/check_stale_generated.py` against `generated.toml`.

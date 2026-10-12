@@ -22,8 +22,8 @@ nothing # hide
 
 ## Why this, and not the whole game at once
 
-The replication plan proposed stacking every player's first-order conditions into one
-monolithic MPCC. That turns out not to be a reformulation. Condition (16) depends on
+The obvious formulation stacks every player's first-order conditions into one monolithic
+MPCC. That turns out not to be a reformulation. Condition (16) depends on
 Lemma 7's derivative table, which is piecewise constant and indexed by which
 complementarities are active, so (16) is not a smooth function of the variables and no
 single smooth MPCC has it as its stationarity conditions. The two honest routes to a

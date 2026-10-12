@@ -2,8 +2,8 @@
 #
 #     julia --project scripts/check_upstream_portable.jl
 #
-# The offer made in `upstream/PULL_REQUEST.md` is that the file needs no dependency CCOpt.jl
-# does not already have. That is a claim about someone else's project, and reading their
+# The claim made for the upstream files is that they need no dependency CCOpt.jl does not
+# already have. That is a claim about someone else's project, and reading their
 # `test/Project.toml` is not the same as running there. This builds a throwaway project
 # holding exactly their declared test dependencies plus CCOpt itself — no JuMP, no
 # PATHSolver, no MathOptComplements bridges in use, and neither of this programme's own
@@ -72,9 +72,8 @@ for f in EMITTED
     println("    imports:          ", join(imports, ", "))
     println("    outside that set: ", isempty(outside) ? "none" : join(outside, ", "))
     isempty(outside) || error("$(basename(f)) imports $(join(outside, ", ")), which CCOpt's " *
-                              "test environment does not carry — the offer in " *
-                              "upstream/PULL_REQUEST.md and upstream/NOTE_first_order_conditions.md " *
-                              "is no longer true")
+                              "test environment does not carry, so the files are no " *
+                              "longer portable to it")
 end
 
 # --- build the throwaway project and run the file there -------------------------------------
@@ -106,8 +105,7 @@ if failures == 0
     println("PASSED: all $(length(EMITTED)) emitted files run in an environment holding only")
     println("CCOpt's own declared test dependencies, and import nothing outside that set.")
 else
-    println("FAILED: $failures of $(length(EMITTED)) emitted files did not run there, so what")
-    println("upstream/PULL_REQUEST.md and upstream/NOTE_first_order_conditions.md claim is")
-    println("no longer true.")
+    println("FAILED: $failures of $(length(EMITTED)) emitted files did not run there, so they")
+    println("are no longer portable to CCOpt's test environment.")
 end
 exit(failures == 0 ? 0 : 1)

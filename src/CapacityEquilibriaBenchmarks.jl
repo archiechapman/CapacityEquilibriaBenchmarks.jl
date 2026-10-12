@@ -1,14 +1,14 @@
 """
     CapacityEquilibriaBenchmarks
 
-Published capacity-expansion equilibrium models with published answers, built for the
-engine in `CapacityEquilibria.jl`. Phase 1 holds Murphy and Smeers' two open-loop models —
-the competitive benchmark and the open-loop Cournot game — as linear complementarity
-problems read from `data/`, plus the checks that decide whether a solver's point is their
-equilibrium: the paper's own stated properties, and an exhaustive enumeration of
-complementarity patterns that finds every solution without a solver.
+Published capacity-expansion equilibrium models, built on the engine in
+`CapacityEquilibria.jl`. Murphy and Smeers' two open-loop models, the competitive benchmark
+and the open-loop Cournot game, are linear complementarity problems read from `data/`,
+with the checks that decide whether a solver's point is their equilibrium: the paper's own
+stated properties, and an exhaustive enumeration of complementarity patterns that finds
+every solution without a solver.
 
-Phase 3 adds the closed-loop Cournot model of the paper's section 6, in
+The closed-loop Cournot model of the paper's section 6 is in
 `murphy_smeers_closed_loop.jl`. It shares its entire second stage with the open-loop
 Cournot model and differs only in the condition paired with capacity, which involves the
 sensitivity of the second-stage equilibrium to first-stage investment.

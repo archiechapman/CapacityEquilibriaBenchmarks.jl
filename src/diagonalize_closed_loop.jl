@@ -13,10 +13,12 @@
 #
 # WHY THE BEST RESPONSE IS NOT A SOLVER CALL. Player i's long-run objective (15), p.24 is
 # piecewise quadratic in its own capacity and, by Lemma 13, p.31, only piecewise *convex*.
-# Its marginal cost can jump downwards (Figure 4, p.32). A local method started anywhere
-# can therefore stop at a point that is not the best response, and `FINDINGS.md` F-0013
-# shows the damage that does: two of the three roots of the equilibrium condition on each
-# instance are corners that a first-order method can sit at happily.
+# Its marginal cost can jump downwards (Figure 4, p.32). A local method can therefore stop
+# in a well that is not the best response, and `FINDINGS.md` F-0017 builds cases where two
+# wells are level to fourteen figures and a solver started in the worse one often stays.
+# A best response computed from the first-order condition (16) would be worse still: F-0013's
+# corner roots satisfy (16) although the objective falls from them (F-0018), so a root-find
+# would accept a point that even a local method leaves.
 #
 # So the best response here is computed globally and exactly. For a fixed rival capacity,
 # each second-stage complementarity pattern makes the second-stage solution affine in the

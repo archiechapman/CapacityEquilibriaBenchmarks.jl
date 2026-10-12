@@ -1,6 +1,6 @@
-# When a solver is right and the answer is wrong
+# A hard case, and two things found on the way to it
 
-*A note to accompany `closed_loop_demonstration.jl`, written for François Pacaud
+*A note to accompany `hard_case_near_tie.jl` and `closed_loop_demonstration.jl`, written for François Pacaud
 (`@frapac`) alongside the open-loop test case in `ISSUE.md`. Deliberately written so that
 the argument survives without any economics: the phenomenon is about the shape of an
 optimisation problem, not about electricity. Nothing here has been sent.*
@@ -14,8 +14,10 @@ system. On two instances that system has **three solutions each. Only one of the
 equilibrium.** The other two are perfectly good roots at which a player would in fact
 prefer to do something completely different.
 
-Two of the three things below reflect well on CCOpt and the awkward one is awkward for the
-modelling rather than for the solver, so this is not a complaint dressed up as a note.
+Two of the things below reflect well on CCOpt, one is awkward for the modelling rather than
+for the solver, and the last is a problem I built specifically to be hard, on which both of
+your methods get the answer right about half the time. That last one is the reason I am
+writing; the rest is context for it.
 
 CCOpt gets the economically meaningful part right at all three points, with both methods.
 The trouble is not in the solver. It is that the system has a larger solution set than the
@@ -48,25 +50,30 @@ condition a first-order condition rather than a characterisation.
 
 ## Where the first-order condition loses information
 
-Write a firm's profit as a function of its own capacity, holding its rival fixed. Two facts
-about that function:
+Write a firm's profit as a function of its own capacity, holding its rival fixed. It is
+**piecewise quadratic**: as capacity grows, the pattern of which plants run in which markets
+changes, and each change is a kink. The first-order condition is built from the derivative
+of the output stage with respect to capacity, which is a piecewise-constant table indexed by
+that pattern, and the source paper states the condition only where the output stage is
+differentiable.
 
-1. It is **piecewise quadratic**. As capacity grows, the pattern of which plants run in
-   which markets changes, and each change is a kink.
-2. It is **only piecewise convex**. Across a kink the marginal cost can jump *downwards*.
+The corner solutions are not such points. A firm holding zero capacity produces zero, so in
+every market its output sits on both of its bounds at once: it is idle, and it is at
+capacity. The pattern is ambiguous. Read the firm as idle and its capacity earns nothing at
+the margin, every derivative term vanishes, and the condition reduces to "capacity costs
+something", which holds at zero. Read it as running at capacity and the derivative is the
+true one-sided slope, which is steeply negative: the firm's very first unit of capacity
+pays, at 18 per unit on the smaller instance, and the payoff keeps improving at least out
+to two units on every corner I checked.
 
-The first-order condition says: no infinitesimal change of capacity improves the objective.
-For a smooth convex problem that is the same as "no change improves it". Here it is not,
-and the difference is exactly a jump.
+So the corner is not a local optimum that the derivative cannot see past. It is not a
+minimum at all. It is a kink at which the condition is undefined, and evaluating it
+mechanically, with the ambiguous constraints classified the natural way, returns a root
+that is not an equilibrium.
 
-The concrete case is a firm holding zero capacity. Its first unit of capacity is expensive
-relative to what that one unit earns, because with one unit it barely participates. So no
-small increase pays, and the first-order condition is satisfied at zero. But a *large*
-increase changes which plants are running in which markets, moves the price, and pays very
-well. The derivative at zero cannot see that. It is looking at a slope on the near side of
-a cliff.
-
-So the corner is a root of the equilibrium condition and is not an equilibrium.
+The profit function is also only piecewise convex — across a kink the marginal cost can
+jump downwards — so a genuine stationary point need not be the best response either. That
+is a different failure from the corners, and the last section builds a case of it.
 
 ## What that looks like in numbers
 
@@ -157,13 +164,15 @@ that plays to a complementarity solver's strengths. Its solution set contains al
 points above. A solver that returns a corner has done nothing wrong.
 
 **Wrap the solver in a best-response loop.** Fix one firm, optimise the other, alternate.
-Here the outcome depends entirely on how the inner optimisation is done. If the inner
-best response is *global*, the corners are not fixed points at all, because the rival
-strictly prefers to move away, and the loop converges to the true equilibrium from every
-start I have tried. If the inner best response is a local solve from the current iterate —
-which is the obvious implementation, and the one a solver naturally invites — then a corner
-*is* a fixed point, and the whole scheme reports it as an equilibrium with a clean
-convergence history and nothing anywhere to indicate a problem.
+Here the outcome depends on what the inner step computes. If it genuinely optimises, the
+corners are not fixed points at all, because the firm holding nothing strictly prefers to
+build, and the loop converges to the true equilibrium from every start I have tried. A
+*local* optimisation leaves the corners too, since the payoff improves from the first unit.
+If instead the inner step solves the firm's first-order condition — which is what "stack
+the KKT conditions" amounts to, one firm at a time — then a corner *is* a fixed point, and
+the whole scheme reports it as an equilibrium with a clean convergence history and nothing
+anywhere to indicate a problem. A local optimisation has a trap of its own, a firm sitting
+in the worse of two genuine wells, and that is the case the last section builds.
 
 **And here CCOpt comes out well, which I want to say as plainly as the awkward part.** I
 wrote each firm's best response as an MPCC — a nonconvex quadratic objective over the
@@ -171,23 +180,21 @@ output-stage complementarity conditions — and handed it to CCOpt. Its global o
 known exactly for this family, so this is a case where a solver can be marked against a
 right answer rather than against another method's fixed point.
 
-Both methods found the global optimum on all 32 solves I tried. The eight that matter are
-the ones started *exactly at a local optimum that is not global*: the firm holding nothing,
-every variable consistent, at a point where no small increase pays. A method that only moves
-downhill has no reason to leave. Both of yours left, every time, and found improvements
-worth 32, 46, 188 and 322.
+Both methods found the global optimum on all 32 solves I tried. Eight of them were started
+exactly at a corner: the firm holding nothing, every variable consistent, the output stage
+degenerate and its dual out on the ray described above. Both methods left, every time, and
+found improvements worth 32, 46, 188 and 322.
 
-My guess at the mechanism is the homotopy. Both methods begin with the complementarity
-loosened and tighten it over a sequence of subproblems, and while it is loose the iterate can
-cross a regime boundary, which is exactly the barrier that traps a method starting with the
-complementarity already tight. If that is right it is a property of the approach rather than
-of this problem, and it is the most useful thing I have learned about CCOpt. It also means a
-best-response loop built on CCOpt would not fall into the trap described just above, which is
-worth knowing before anyone builds one.
+I do not want to oversell those eight. The corner is not a local optimum, so a method that
+only moves downhill has somewhere to go from it. What they show is that a degenerate start —
+every capacity constraint of one firm active from both sides, and a dual the problem does
+not pin down — stalls neither method. Whether CCOpt can climb out of a genuine well is a
+different question, and the last section is built to ask it.
 
 So the reliability sits in a place that is easy to overlook: not in the outer iteration and
-not in the solver's residual, but in whether the innermost optimisation can cross a regime
-boundary. Yours can, and no residual would ever have told me that.
+not in the solver's residual, but in the innermost step being an optimisation rather than a
+root-find of the first-order condition. A root-find accepts the corners; an optimisation,
+even a local one, leaves them.
 
 I do not think there is a fix inside a solver for this. The extra roots are really there in
 the system. What a solver could plausibly offer is a way to find *several* of them, and what
@@ -223,9 +230,77 @@ one and would not be one, and whichever root the solver happened to land on woul
 expected value by accident.
 
 If you did want a test out of this, the best-response MPCC is the better candidate: a
-genuine nonconvex MPCC, small, self-contained, with an exactly known global optimum and an
-adversarial starting point that a downhill-only method would fail from. I have not packaged
-that one, and would only do so if it is of interest.
+genuine nonconvex MPCC, small, self-contained, with an exactly known global optimum and a
+degenerate starting point. It is packaged, and the hardened version of it, started inside a
+genuine wrong well, is the next section.
+
+## The one I think is actually worth your time
+
+Everything above, and everything else I threw at CCOpt, it solved. That is a weak thing to
+offer, so I went looking for a case that would be hard, and the search itself turned out to
+be the interesting part.
+
+**How to make this problem hard on purpose.** A firm's payoff as a function of its own
+capacity is piecewise quadratic, one piece per pattern of which plants run in which blocks.
+So the landscape is a row of wells. As the *rival's* capacity moves, those wells rise and
+fall relative to one another. Somewhere between "well A is deeper" and "well B is deeper"
+they are exactly level. Tuning the rival's capacity to that point is a one-dimensional root
+find, and it costs nothing.
+
+At that rival capacity, on my two instances:
+
+| Instance | Firm | Two optima at | Apart by | Objectives agree to |
+|---|---|---|---|---|
+| A | peaking | 5.000 and 3.873 | 1.127 | 1.7e-14 relative |
+| A | base-load | 5.333 and 4.775 | 0.559 | 3.0e-15 |
+| B | peaking | 2.433 and 3.000 | 0.567 | 2.4e-14 |
+| B | base-load | 3.633 and 3.133 | 0.500 | 9.5e-15 |
+
+Exactly at the tie the question has no answer, so nothing can be marked there. Move the
+rival's capacity by a thousandth and one well becomes strictly better by a relative margin
+of about 1e-4. Move it a thousandth the other way and the *other* well wins. So the answer
+flips across a knife-edge while the two candidate answers stay a fifth of the domain apart.
+
+**The test.** Thirty-two problems: four ties, four perturbations each, two methods. Each is
+posed from a starting point inside the *wrong* well, which is the honest way to ask whether
+a method can leave one. The right answer is known exactly, from enumerating the pieces and
+minimising each in closed form, so this is marked against a right answer and not against
+another solver.
+
+`hard_case_near_tie.jl` reports **the better well found in 16 of 32**. Both methods fail,
+on different problems, neither dominating. On instance A's peaking firm the relaxation
+method keeps the worse well in all four perturbations while the penalty method escapes in
+two; on instance B's peaking firm that reverses at two of the four.
+
+I want to be careful about what that is and is not. Every returned point is a genuine local
+optimum and every one is feasible. These are not convergence failures. They are converged
+answers to a question with two nearly equal answers, and no residual distinguishes them —
+the wrong answer looks exactly as good as the right one from inside the solver. I also have
+no comparison: I have not run another MPCC solver on this, so I cannot tell you whether half
+is good, bad or ordinary. That is partly why I am sending it.
+
+**One thing I noticed while building it, which may matter more than the score.** These wells
+sit on regime boundaries. There CCOpt's *output-stage* solution is about 2e-4 from PATH's,
+against about 1e-8 at an interior point. That is a different degradation from the unbounded
+dual described earlier — here the primal itself is less accurate — and it is why the file
+inlines its ground truth rather than recomputing it. A solver cannot be its own oracle on a
+margin of 4e-3 when its own arithmetic is uncertain at 2e-4.
+
+The file is here: HARD_URL
+
+```
+curl -O HARD_RAW_URL
+```
+
+It imports only `NLPModels`, `MPCCModels`, `MadNLP`, `CCOpt` and `Test`, runs in about half
+a minute, asserts the ground truth and that every returned point is one of the two optima,
+and reports the score. It does not assert the score, because that would freeze a finding as
+an expected value, and because the number moves with the starting point — an in-repository
+run warm-started from PATH gave 19 of 32 rather than 16.
+
+If a hard case is useful to you, I can make more of these cheaply: the tie search is generic
+and the instances are constructed, so the mechanism generalises to bigger problems and to
+whatever margin you want to test at.
 
 ## Reproducing it
 

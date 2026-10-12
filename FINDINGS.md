@@ -4,7 +4,7 @@
 mean given the edition in hand. Solver behaviour as such is the engine's ledger
 (`CapacityEquilibria.jl/FINDINGS.md`); this one records model results.*
 
-*Last updated 2026-09-10. Produced against Julia 1.11.3, CCOpt v0.1.0, MadNLP v0.10.1,
+*Last updated 2026-09-11. Produced against Julia 1.11.3, CCOpt v0.1.0, MadNLP v0.10.1,
 PATHSolver v1.7.9, JuMP v1.31.2, MathOptComplements v0.1.1, MPCCModels v0.1.0, on Windows 11,
 with the Manifest committed alongside. Every number below traces
 to a path named in its `evidence` field. The paper is cited by the printed page numbers of the
@@ -388,6 +388,12 @@ identity, its boundary, and a `valid` flag are now stated; the earlier version h
 checked only at points where both players invest, which is exactly where it happens to be
 right. The primary transcription, built term by term from Lemma 7, was correct throughout.
 
+*Corrected by F-0018, 2026-09-11.* The explanation in the paragraph beginning "This is Lemma
+13, p.31 made concrete" is wrong at all four corners. The player at zero capacity does not
+face a positive marginal cost for its first unit: the first unit is profitable, and each
+corner is a kink at which the idle reading of a biactive pair makes (16) see no revenue at
+all. The roots, the deviation gains and the equilibria stand.
+
 
 ## F-0014 — Diagonalization reaches the same closed-loop equilibria from every start tried, including from the roots of (16) that are not equilibria — and that robustness is a property of the best response, not of the loop.
 
@@ -424,6 +430,11 @@ at a corner, both of its methods leave and find the global best response, becaus
 homotopy loosens the complementarity before tightening it and the iterate can cross a regime
 boundary while it is loose. The risk described here is real for a method that starts with
 the complementarity tight; it is not a property of solver-based approaches in general.
+
+*Corrected again by F-0018, 2026-09-11.* Both the sentence and the correction above assumed
+the corner is a local optimum. It is not: the objective falls from the first unit of
+capacity. A local best response started at a corner would not be trapped there, whatever
+method computed it.
 
 That is the finding worth carrying into Phase 4. The plan proposes stacking every player's
 first-order conditions into one monolithic MPCC for CCOpt.jl to solve. Such a system has
@@ -480,6 +491,12 @@ for a relaxation scheme", and that nothing had been put to either method on a de
 problem. This is that problem, it arrived from the model rather than being constructed, and
 the two methods behave differently on it in a way their termination status does not show.
 
+*Refined by F-0018, 2026-09-11.* The coincidence is tighter than this entry puts it. A corner
+is a root of (16) because the idle player's biactive pairs are read as idle, which gives it
+a zero derivative in every segment; its "own first-order term" vanishes because of that
+reading, not because of the economics. The degeneracy and the spurious root are one
+biactive pair seen twice.
+
 
 ## F-0016 — CCOpt reaches the global best response on every case tried, including when started exactly at a local optimum that is not global.
 
@@ -518,6 +535,127 @@ conditions, whose constraint qualifications are known to fail generically and wh
 shows do fail at the degenerate corners of this very problem. Neither is a translation, and
 neither has been built.
 
+*Corrected by F-0018, 2026-09-11.* The 8 corner starts were not at a local optimum. At each
+corner the objective falls from the first unit of capacity, so the start admits a feasible
+descent path and a method that only moves downhill would leave it too. The 32 solves
+reaching the global best response stand; the reading of the 8 as the sharper test, and the
+homotopy mechanism offered to explain them, do not.
+
+
+## F-0017 — A best-response problem can be built whose two optima are tied to fourteen figures and far apart, and on it CCOpt returns the better one about half the time.
+
+- tier: validated
+- status: settled
+- date: 2026-09-11
+- evidence: `src/hard_best_response.jl` locates the ties by golden section on the gap between the two best widely separated local minima; `upstream/hard_case_near_tie.jl` is the generated artifact and reports 16 of 32 solves finding the better well, run in a project holding only CCOpt's declared test dependencies; the four ties, one per instance and player, are at rival capacities 7.254033307585, 3.450296453109, 5.317351598173 and 4.292375886525, where the competing objectives agree to relative 1.7e-14, 3.0e-15, 2.4e-14 and 9.5e-15 with the capacities 1.127, 0.559, 0.567 and 0.500 apart; perturbing the rival capacity by ±0.001 gives margins between 3.9e-3 and 3.1e-2, relative 7e-5 to 1.5e-4, and flips which well is better; an independent in-repository run from PATH-built starting points gave 19 of 32
+- boundary: two constructed instances and four ties, all of the same kind — two quadratic pieces of one player's objective crossing — so this is one mechanism for hardness and not a survey; the count depends on the starting point, which is why the artifact reports it rather than asserting it, and the two runs recorded here differ (16 and 19 of 32) purely because one warm-starts from CCOpt's output stage and the other from PATH's; the wells sit on regime boundaries where CCOpt's own output stage is about 2e-4 from PATH's against 1e-8 at an interior point, so the artifact takes its ground truth from the inlined values and does not recompute it; nothing here says CCOpt is worse than any other method on this problem, because no other MPCC solver was run on it
+- supersedes: none
+
+Built because the repository had nothing hard. F-0007's problems are strictly complementary
+with unique solutions, F-0016's best responses were solved globally from every start tried,
+and a test that nothing fails is a weak thing to put in front of a solver's author. So this
+was searched for rather than hoped for.
+
+**The mechanism.** A player's long-run objective at a fixed rival capacity is piecewise
+quadratic, one piece per second-stage regime, so the landscape is a row of wells. As the
+rival's capacity moves, the wells rise and fall relative to one another, and somewhere two
+widely separated wells are exactly level. `best_response_tie` finds that capacity by golden
+section on the gap.
+
+At the tie the problem is genuinely ambiguous and a solver cannot be marked. Just off it
+there is a definite right answer, the margin is 1e-4 in relative terms, and *which* well is
+right flips as the rival's capacity crosses the tie. So the same problem perturbed in the
+fifth decimal place of one parameter has two answers a fifth of the domain apart. Every
+problem in the artifact is posed from a start inside the wrong well, which is the honest way
+to ask whether a method can leave one.
+
+**The result.** CCOpt finds the better well in about half of them. Both methods fail, on
+different problems, with neither dominating: on instance A's peaking player the relaxation
+method keeps the worse well in all four, while the penalty method escapes in two; on
+instance B's peaking player the pattern reverses at two of the four offsets. Every returned
+point is a genuine local optimum and every one is feasible; the failures are not
+convergence failures but a converged answer to a question with two nearly equal answers.
+
+**Why this is the useful artifact of the three.** The open-loop case checks that a solver
+reaches a known unique answer. The closed-loop demonstration shows a formulation admitting
+answers that are not equilibria. This one asks whether a method can tell two nearly-tied
+optima apart when started at the wrong one, which is the question the whole diagonalization
+scheme of F-0014 silently depends on. It also puts a number on how hard that is: a margin of
+1e-4 relative is enough to make it a coin flip.
+
+**One thing found while building it.** These wells sit on regime boundaries, and there
+CCOpt's second-stage solution is about 2e-4 from PATH's, against about 1e-8 at an interior
+point. That is a different degradation from F-0015's, which was about an unbounded dual; here
+the primal itself is less accurate. It is the reason the artifact inlines its ground truth
+rather than recomputing it, since a solver cannot be its own oracle on a margin of 4e-3 when
+its own arithmetic is uncertain at 2e-4.
+
+
+## F-0018 — The corner roots of (16) are kinks, not local optima: the player holding nothing gains from its first unit, and (16) reads zero revenue there only because a biactive pair is classified as idle.
+
+- tier: validated
+- status: settled
+- date: 2026-09-11
+- evidence: found by the documentation build, whose tutorial asserted that the first step out of a corner does not pay, and failed (`docs/src/tutorials/2_closed_loop.md`); then `closed_loop_objective` evaluated at the four corner roots of F-0013 with the idle player's capacity raised to 1e-7 — right slopes −18.0 and −16.5 on instance A, −177.5 and −144.5 on instance B, with the objective falling monotonically out to two units of capacity at all four; the instance A base-player slope checked by hand as `K_b + Σ_s (ν_b − p^s) = 7 + 3 − 28 = −18`, where `p = (12.5, 9, 6.5)` are the peaker's prices alone at `x_p = 7.5`; `ms_closed_loop_conditions` at each corner returns `ξ_i = K_i` exactly (7, 2, 50 and 24), which is (16) with every derivative term zero; and `ms_closed_loop_xi` evaluated at the same corner outputs under the regimes the second stage takes just off the corner returns −18 on instance A, the right slope, both asserted in the tutorial
+- boundary: the four corners of F-0013 on two constructed instances, all of one kind, a player holding no capacity; the objective values and best-response gaps of F-0013 come from real second-stage solves and not from (16), so they stand, as does the equilibrium; what this changes is the explanation of why the corners satisfy (16), and every inference that rested on the corners being local optima; the failure mode is a corner on some other instance that is a genuine local optimum, which the paper's Lemma 13 does not exclude and which none of these four is
+- supersedes: none — corrects the explanation in F-0013 and F-0015, and the premise of F-0016's corner starts
+
+F-0013 explained the corner roots by the paper's Lemma 13: the long-run objective is only
+piecewise convex, so "a player sitting at zero capacity can face a positive marginal cost
+of the first unit — locally optimal — while a larger investment that crosses into another
+regime is strictly better". At all four corners the first half is false. The first unit is
+profitable, strictly, and the objective falls from zero capacity at a steep constant slope.
+None of the corners is a local optimum.
+
+**Why (16) holds there anyway.** At `x_i = 0` the idle player's output is `0 = x_i` in every
+segment, so each of its capacity pairs is biactive: it is idle and at capacity at once.
+`ms_regime` tests `y ≤ tol` first and reads it as idle, which puts every segment in regime
+(d) or (e) with that player idle, and Lemma 7 gives `B_i y_i = 0` there. With every
+derivative term zero, (16) reduces to `ξ_i = K_i > 0`, complementary to `x_i = 0`: a root.
+Read the same pairs as at capacity and the segments are in regimes (a) and (c), where
+`B_i y_i = 1`, and (16) evaluates to the right derivative, which is negative. So the
+corners are points where the second-stage solution is not differentiable, and (16) is
+stated only where it is (p.24). F-0012's boundary named exactly this failure mode — "nothing
+here detects a kink, so a candidate sitting on one would be silently mis-tested" — and two
+of the three roots on each instance are candidates of that kind. The enumeration of
+`enumerate_closed_loop` finds them because the pattern with the output nonbasic and the
+capacity dual basic is a legitimate pattern at a degenerate point, and it carries the idle
+reading with it.
+
+**This sharpens F-0015 rather than weakening it.** The spurious roots and the degenerate
+points coincide because they are the same biactive pair seen twice: as degeneracy it makes
+the dual a ray, and as an ambiguous regime it lets the classification choose the branch on
+which the corner is a root.
+
+**What stands.** The corners are not equilibria, by the same margins; `best_response_gap`
+never consulted (16). The equilibria are unchanged. D-0006's requirement of a best-response
+check before a root is called an equilibrium is, if anything, more necessary: the roots it
+refutes are not even stationary. F-0015's dual ray and its limit on the residual criterion
+are unaffected. So is F-0016's headline: all 32 solves reached the global best response.
+
+**What falls.** F-0016 described its 8 corner starts as "a local optimum that is not
+global", and read CCOpt's leaving them as evidence that the homotopy lets an iterate cross a
+regime boundary. The start is not a local optimum of the MPCC either: the path
+`x_i = t` with the second stage re-solved at each `t` is feasible for the MPCC and lowers the
+objective at the right slope from `t = 0`. A method that only moves downhill would leave the
+corner too, so those 8 solves are a degenerate start rather than a trap, and the homotopy
+inference loses its support without being refuted. F-0014's original sentence, that a local
+best response would have sat at a corner, and the correction F-0016 appended to it, both
+rested on the corner being a local optimum. Neither stands in the form written: a local best
+response started at a corner is not trapped, for the simpler reason that the corner is not a
+minimum. The trap test this programme has is F-0017's, where both wells are verified local
+minima on both sides.
+
+The wrong explanation also appeared in `docs/REPLICATION_REPORT.md`; in
+`upstream/NOTE_first_order_conditions.md`, the unsent note; in the header of the generated
+`upstream/closed_loop_demonstration.jl`, through `scripts/emit_closed_loop_demo.jl`; in the
+docstrings of `ms_closed_loop_xi`, `best_response_gap` and `best_response_start_arrays`, the
+first and last of which are spliced into the generated files; in the headers of
+`diagonalize_closed_loop.jl` and `hard_best_response.jl`; in the plan's Phase 4 corrections
+table; and in a testset of the corner starts. All are corrected alongside this entry. The
+testset, now "CCOpt leaves a degenerate corner it is started at", also asserts the premise it
+rests on: that the objective falls from the corner.
+
 ---
 
 ## What this does not establish
@@ -535,10 +673,13 @@ neither has been built.
   are all strictly complementary with unique solutions. The closed-loop corners are
   degenerate with an unbounded dual ray, and F-0015 records what both methods do there.
   That is four points of one kind, not a study.
-- **Nothing about either upstream artifact being wanted.** Both are generated,
+- **Nothing about how CCOpt compares with anything else.** F-0017 is hard enough that
+  CCOpt gets it right about half the time, but no other MPCC solver has been run on it, so
+  there is no basis for saying whether that is good, bad or ordinary.
+- **Nothing about any upstream artifact being wanted.** Both are generated,
   self-contained, passing and portable to CCOpt's own test environment (F-0009, F-0011,
-  F-0015). No maintainer has been asked whether they want them, and nothing has been
-  posted anywhere.
+  F-0015, F-0017). No maintainer has been asked whether they want any of them, and nothing
+  has been posted anywhere.
 - **Nothing beyond two regime sets.** Between them the instances show Cournot types (a),
   (b), (c) and competitive types (a), (c), (d), (e). A peaker that does not invest
   (Theorem 1 allows it), a Cournot segment of type (d) or (e), or a tie at `S_p` are not
@@ -569,10 +710,12 @@ neither has been built.
    posting is a deliberate step that has not been taken. The artifact stands on its own
    as a validation case either way (the plan's own framing), and the engine's F-0007 — the
    `RawStatusString` bug — is worth reporting with it.
-6. Phase 4, in progress. One player's best response is built as an MPCC and CCOpt solves
-   it globally on every case tried, including from adversarial starts (F-0016). The
-   monolithic joint system the plan asks for is not built, and `src/best_response_mpcc.jl`
-   records why it is not the mechanical translation the plan describes.
+6. Phase 4, in progress. One player's best response is built as an MPCC (F-0016), and a
+   deliberately hard instance of it — two optima tied to fourteen figures and far apart —
+   is built, generated into `upstream/`, and found to be about a coin flip for both CCOpt
+   methods (F-0017). The monolithic joint system the plan asks for is not built, and
+   `src/best_response_mpcc.jl` records why it is not the mechanical translation the plan
+   describes.
 7. Phase 3, complete. The model is transcribed (F-0012), both instances' closed-loop
    equilibria are found and checked against every comparative result the paper states
    (F-0013), and D-0006 records what validation means here. What remains: an instance whose

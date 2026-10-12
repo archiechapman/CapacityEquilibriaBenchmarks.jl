@@ -34,8 +34,10 @@ export MSSecondStageIndex, ms_second_stage_lcp, ms_second_stage, segment_role,
 export enumerate_closed_loop, closed_loop_affine
 export closed_loop_objective, best_response_gap
 export best_response, diagonalize
-export ms_second_stage_arrays, ms_regime, ms_regime_jacobian, ms_closed_loop_xi
+export ms_second_stage_arrays, ms_regime, ms_regime_jacobian, ms_closed_loop_xi,
+       ms_long_run_objective
 export BestResponseMPCC, best_response_mpcc, solve_best_response_mpcc, best_response_start
+export best_response_wells, best_response_tie, best_response_gap_at, feasible_bases
 
 include("murphy_smeers.jl")
 include("murphy_smeers_closed_loop.jl")
@@ -43,5 +45,6 @@ include("enumerate_lcp.jl")
 include("enumerate_closed_loop.jl")
 include("diagonalize_closed_loop.jl")
 include("best_response_mpcc.jl")
+include("hard_best_response.jl")
 
 end # module

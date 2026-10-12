@@ -278,10 +278,10 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
                 # `enumerate_closed_loop` finds every point satisfying (16) at a
                 # differentiable point, without a solver in the search. On both instances
                 # three do, and exactly one of them is an equilibrium: the other two are
-                # corners where one player invests nothing, and the other player would
-                # strictly gain by deviating. That is the piecewise convexity of Lemma 13,
-                # p.31 showing up as a stationary point that is not a minimum, and it is why
-                # D-0006 will not call a root of (16) an equilibrium without this check.
+                # corners where one player invests nothing and would strictly gain by
+                # building. They are kinks, not minima: (16) holds there only because the
+                # idle player's biactive capacity pairs are read as idle (F-0018). That is
+                # why D-0006 will not call a root of (16) an equilibrium without this check.
                 en = enumerate_closed_loop(data)
                 @test length(en.solutions) == 3
 
@@ -394,17 +394,22 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
                     end
                 end
 
-                @testset "CCOpt escapes a local optimum it is started at" begin
-                    # The sharpest test available. At a corner root of (16) the player
-                    # holding nothing is at a local optimum: no small increase pays. A
-                    # global increase pays a great deal. Started exactly there, with every
-                    # variable consistent, a method that only moves downhill would stay.
+                @testset "CCOpt leaves a degenerate corner it is started at" begin
+                    # At a corner root of (16) the player holding nothing has every capacity
+                    # pair biactive, so the second stage is degenerate and its dual a ray
+                    # (F-0015). The corner is not a local optimum — the objective falls from
+                    # the first unit (F-0018), asserted below — so this asks whether a
+                    # degenerate start stalls the method, not whether it can leave a well.
+                    # F-0017 is the test of that.
                     en = enumerate_closed_loop(data)
                     corners = [x for x in en.solutions if best_response_gap(data, x).gap > 0]
                     @test length(corners) == 2
                     for xc in corners
                         i = xc[PLAYER_P] < 1e-9 ? PLAYER_P : PLAYER_B
                         @test xc[i] < 1e-9                       # it starts at zero
+                        bump = collect(Float64.(xc)); bump[i] = 1e-4
+                        @test closed_loop_objective(data, i, bump) <
+                              closed_loop_objective(data, i, xc)  # and downhill leads out
                         exact = best_response(data, i, xc)
                         @test exact.x_i > 1.0                    # and the answer is far away
                         z0 = best_response_start(data, i, xc)
@@ -426,9 +431,9 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
                 # The best response is computed globally and exactly, by minimising the
                 # objective's quadratic piece on each second-stage pattern's validity
                 # interval. That matters more than the outer loop: F-0013's corner roots are
-                # fixed points of the *first-order condition*, and a local best response
-                # could sit at one. A global one cannot, because at those corners the rival
-                # strictly gains by moving.
+                # roots of the *first-order condition*, and a best response computed by
+                # solving (16) would accept one. An optimising best response cannot, because
+                # at those corners the player holding nothing strictly gains by building.
                 z_cl = load_ms_expected(data, expected_path(tag), :closed_loop_cournot)
                 x_star = z_cl[1:2]
 
@@ -523,6 +528,57 @@ expected_path(tag) = joinpath(DATADIR, "ms2002_instance_$(tag)_expected.toml")
     else
         @info "RUN_CLOSED_LOOP is not set; skipping the multi-start diagonalization study. " *
               "Set it to \"true\" to run it (about two minutes)."
+    end
+
+    @testset "the emitted hard case is the same problem, and still hard" begin
+        # The third generated artifact (D-0001). Including it runs its own assertions and
+        # prints its score; the module it returns is then checked against the in-repo
+        # model. The score itself is not asserted — it moves with the starting point, and
+        # F-0017 records why freezing it would turn a finding into a baseline.
+        hard_path = joinpath(@__DIR__, "..", "upstream", "hard_case_near_tie.jl")
+        @test isfile(hard_path)
+        hard = include(hard_path)
+
+        @test length(hard.CASES) == length(INSTANCES) * 2      # two players per instance
+        for case in hard.CASES
+            tag = occursin("instance A", case.name) ? "a" : "b"
+            data = load_ms_instance(instance_path(tag))
+            @test case.S == data.S && case.beta == data.beta && case.alpha == data.alpha
+            @test case.K == data.K && case.nu == data.nu
+
+            # The spliced output stage rebuilds the in-repo matrices exactly, at a capacity
+            # vector that is none of the inlined ones.
+            probe = [1.75, 2.25]
+            Me, qe = hard.ms_second_stage_arrays(case.S, case.beta, case.alpha, case.K,
+                                                 case.nu, probe)
+            M, q, _ = ms_second_stage_lcp(data, probe)
+            @test Me == M && qe == q
+
+            # Every inlined problem is a genuine near-tie: two far-apart optima, a tiny
+            # margin, and the better one really better. Checked against this repository's
+            # own objective rather than against the file's inlined numbers.
+            @test length(case.problems) >= 2
+            for pr in case.problems
+                @test pr.margin > 0
+                @test abs(pr.right - pr.other) > 0.4
+                @test abs(pr.margin / pr.right_objective) < 2e-3
+                x_right = zeros(2); x_right[3 - case.player] = pr.rival
+                x_other = copy(x_right)
+                x_right[case.player] = pr.right
+                x_other[case.player] = pr.other
+                vr = closed_loop_objective(data, case.player, x_right)
+                vo = closed_loop_objective(data, case.player, x_other)
+                @test vr ≈ pr.right_objective atol = 1e-8
+                @test vo ≈ pr.other_objective atol = 1e-8
+                @test vr < vo                     # the inlined "right" answer is right
+            end
+
+            # And the tie itself: at the recorded rival capacity the two wells are level to
+            # far better than any margin the problems use.
+            near = [pr for pr in case.problems if abs(pr.offset) <= 0.001]
+            @test !isempty(near)
+            @test all(abs(pr.margin) < 0.05 for pr in near)
+        end
     end
 
     @testset "the emitted demonstration is the same model, and still shows it" begin

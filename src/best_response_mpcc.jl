@@ -18,8 +18,7 @@
 # are known to fail generically at exactly the degenerate points F-0015 identifies.
 #
 # This file builds the piece both routes need and which is well posed on its own: one
-# player's MPEC, as an MPCC. That is also the object whose global solution F-0014 showed the
-# whole diagonalization scheme rests on, so it is the piece worth putting to a solver first.
+# player's MPEC, as an MPCC.
 #
 # THE PROBLEM. For player `i`, with the rival's capacity `x_o` fixed:
 #
@@ -38,22 +37,28 @@
 # `[2β β; β 0]`, whose determinant is `−β²`, so it is indefinite in every segment. That is
 # not incidental: it is the same non-convexity that makes the first-order conditions admit
 # roots that are not equilibria, seen from the other side.
+#
+# Everything between the `emit:best_response_core` markers takes plain numbers and depends
+# on nothing else in this package, so that the emitters can copy it into the self-contained
+# files offered upstream (DECISIONS.md D-0001). The `MSData` methods at the end are wrappers.
 
-using SparseArrays: sparse, SparseMatrixCSC, nnz
+import SparseArrays
+
+# emit:best_response_core:begin
 
 """
-    BestResponseMPCC(data, i, x_other)
+    BestResponseNLP(S, beta, alpha, K, nu, i, x_other; x0)
 
 Player `i`'s long-run problem as an `NLPModels.AbstractNLPModel` in
 
-    z = (x_i, y_p^1..S, y_b^1..S, λ_p^1..S, λ_b^1..S, ω_p^1..S, ω_b^1..S, u_p^1..S, u_b^1..S)
+    z = (x_i, y_p^1..S, y_b^1..S, lambda_p^1..S, lambda_b^1..S,
+         omega_p^1..S, omega_b^1..S, u_p^1..S, u_b^1..S)
 
 of length `1 + 8S`, with `4S` linear equality constraints and every variable nonnegative.
-Pair it with [`best_response_mpcc`](@ref), which declares the complementarities.
-
-`x_other` is data, not a variable: this is one player's problem, not the game.
+Player 1 is the peaking plant, 2 the base-load plant. `x_other` is data, not a variable:
+this is one player's problem, not the game.
 """
-struct BestResponseMPCC{T} <: NLPModels.AbstractNLPModel{T, Vector{T}}
+struct BestResponseNLP{T} <: NLPModels.AbstractNLPModel{T, Vector{T}}
     S::Int
     i::Int
     beta::T
@@ -61,27 +66,21 @@ struct BestResponseMPCC{T} <: NLPModels.AbstractNLPModel{T, Vector{T}}
     K::Vector{T}
     nu::Vector{T}
     x_other::T
-    A::SparseMatrixCSC{T, Int}
+    A::SparseArrays.SparseMatrixCSC{T, Int}
     meta::NLPModels.NLPModelMeta{T, Vector{T}}
     counters::NLPModels.Counters
 end
 
-# Positions in z. Player 1 is the peaker, 2 the base plant, as everywhere else.
-br_x(::BestResponseMPCC) = 1
-br_y(m::BestResponseMPCC, j, s) = 1 + (j - 1) * m.S + s
-br_λ(m::BestResponseMPCC, j, s) = 1 + 2 * m.S + (j - 1) * m.S + s
-br_ω(m::BestResponseMPCC, j, s) = 1 + 4 * m.S + (j - 1) * m.S + s
-br_u(m::BestResponseMPCC, j, s) = 1 + 6 * m.S + (j - 1) * m.S + s
+br_y(m::BestResponseNLP, j, s) = 1 + (j - 1) * m.S + s
+br_λ(m::BestResponseNLP, j, s) = 1 + 2 * m.S + (j - 1) * m.S + s
+br_ω(m::BestResponseNLP, j, s) = 1 + 4 * m.S + (j - 1) * m.S + s
+br_u(m::BestResponseNLP, j, s) = 1 + 6 * m.S + (j - 1) * m.S + s
 
-function BestResponseMPCC(d::MSData, i::Int, x_other::Real; x0 = nothing)
-    S = d.S
+function BestResponseNLP(S::Integer, beta::Real, alpha::AbstractVector, K::AbstractVector,
+                         nu::AbstractVector, i::Int, x_other::Real; x0 = nothing)
+    T = Float64
     n = 1 + 8 * S
     ncon = 4 * S
-    T = Float64
-    o = other(i)
-
-    # Build the constraint matrix by writing into a dense scratch and sparsifying: n is at
-    # most a few dozen here and the clarity is worth more than the allocation.
     A = zeros(T, ncon, n)
     b = zeros(T, ncon)
     yidx(j, s) = 1 + (j - 1) * S + s
@@ -90,149 +89,120 @@ function BestResponseMPCC(d::MSData, i::Int, x_other::Real; x0 = nothing)
     uidx(j, s) = 1 + 6 * S + (j - 1) * S + s
 
     for j in 1:2, s in 1:S
-        # ω_j^s − 2β y_j^s − β y_{−j}^s − λ_j^s = ν_j − α^s
+        # omega_j^s - 2 beta y_j^s - beta y_-j^s - lambda_j^s = nu_j - alpha^s
         r = (j - 1) * S + s
         A[r, ωidx(j, s)] = 1.0
-        A[r, yidx(j, s)] = -2 * d.beta
-        A[r, yidx(3 - j, s)] = -d.beta
+        A[r, yidx(j, s)] = -2 * beta
+        A[r, yidx(3 - j, s)] = -beta
         A[r, λidx(j, s)] = -1.0
-        b[r] = d.nu[j] - d.alpha[s]
-
-        # u_j^s + y_j^s − x_j = 0, and x_j is a variable only for player i
+        b[r] = nu[j] - alpha[s]
+        # u_j^s + y_j^s - x_j = 0; x_j is a variable only for player i
         r = 2 * S + (j - 1) * S + s
         A[r, uidx(j, s)] = 1.0
         A[r, yidx(j, s)] = 1.0
         if j == i
             A[r, 1] = -1.0
-            b[r] = 0.0
         else
             b[r] = Float64(x_other)
         end
     end
-    Asp = sparse(A)
-
+    Asp = SparseArrays.sparse(A)
     start = x0 === nothing ? zeros(T, n) : collect(T, x0)
     meta = NLPModels.NLPModelMeta{T, Vector{T}}(
-        n;
-        x0 = start,
-        lvar = zeros(T, n),
-        uvar = fill(T(Inf), n),
-        ncon = ncon,
-        y0 = zeros(T, ncon),
-        lcon = b,
-        ucon = b,
-        nnzj = nnz(Asp),
-        lin_nnzj = nnz(Asp),
-        nln_nnzj = 0,
-        nnzh = 2 * S,
-        lin = collect(1:ncon),
-        minimize = true,
-        name = "Murphy-Smeers best response, player $i, S = $S",
-    )
-    return BestResponseMPCC{T}(S, i, d.beta, collect(T, d.alpha), collect(T, d.K),
-                               collect(T, d.nu), T(x_other), Asp, meta,
-                               NLPModels.Counters())
+        n; x0 = start, lvar = zeros(T, n), uvar = fill(T(Inf), n),
+        ncon = ncon, y0 = zeros(T, ncon), lcon = b, ucon = b,
+        nnzj = SparseArrays.nnz(Asp), lin_nnzj = SparseArrays.nnz(Asp), nln_nnzj = 0,
+        nnzh = 2 * S, lin = collect(1:ncon), minimize = true,
+        name = "Murphy-Smeers best response, player $i, S = $S")
+    return BestResponseNLP{T}(Int(S), i, T(beta), collect(T, alpha), collect(T, K),
+                              collect(T, nu), T(x_other), Asp, meta, NLPModels.Counters())
 end
 
-# --- objective: K_i x_i + Σ_s (ν_i − α^s + β(y_p + y_b)) y_i^s ----------------------------
-
-function NLPModels.obj(m::BestResponseMPCC{T}, z::AbstractVector) where {T}
+function NLPModels.obj(m::BestResponseNLP{T}, z::AbstractVector) where {T}
     i, o = m.i, 3 - m.i
     v = m.K[i] * z[1]
     for s in 1:m.S
-        yi = z[br_y(m, i, s)]
-        yo = z[br_y(m, o, s)]
+        yi, yo = z[br_y(m, i, s)], z[br_y(m, o, s)]
         v += (m.nu[i] - m.alpha[s] + m.beta * (yi + yo)) * yi
     end
     return v
 end
 
-function NLPModels.grad!(m::BestResponseMPCC{T}, z::AbstractVector, g::AbstractVector) where {T}
+function NLPModels.grad!(m::BestResponseNLP{T}, z::AbstractVector, g::AbstractVector) where {T}
     fill!(g, zero(T))
     i, o = m.i, 3 - m.i
     g[1] = m.K[i]
     for s in 1:m.S
-        yi = z[br_y(m, i, s)]
-        yo = z[br_y(m, o, s)]
+        yi, yo = z[br_y(m, i, s)], z[br_y(m, o, s)]
         g[br_y(m, i, s)] = m.nu[i] - m.alpha[s] + 2 * m.beta * yi + m.beta * yo
         g[br_y(m, o, s)] = m.beta * yi
     end
     return g
 end
 
-NLPModels.objgrad!(m::BestResponseMPCC, z::AbstractVector, g::AbstractVector) =
+NLPModels.objgrad!(m::BestResponseNLP, z::AbstractVector, g::AbstractVector) =
     (NLPModels.obj(m, z), NLPModels.grad!(m, z, g))
 
-# --- constraints: all linear ----------------------------------------------------------------
-
-NLPModels.cons!(m::BestResponseMPCC, z::AbstractVector, c::AbstractVector) =
+NLPModels.cons!(m::BestResponseNLP, z::AbstractVector, c::AbstractVector) =
     LinearAlgebra.mul!(c, m.A, z)
-NLPModels.cons_lin!(m::BestResponseMPCC, z::AbstractVector, c::AbstractVector) =
+NLPModels.cons_lin!(m::BestResponseNLP, z::AbstractVector, c::AbstractVector) =
     LinearAlgebra.mul!(c, m.A, z)
-NLPModels.cons_nln!(::BestResponseMPCC, ::AbstractVector, c::AbstractVector) = c
+NLPModels.cons_nln!(::BestResponseNLP, ::AbstractVector, c::AbstractVector) = c
 
-function _br_jac_structure!(A::SparseMatrixCSC, rows, cols)
+function _br_jac_structure!(A, rows, cols)
     k = 1
     @inbounds for col in 1:size(A, 2), p in A.colptr[col]:(A.colptr[col + 1] - 1)
-        rows[k] = A.rowval[p]
-        cols[k] = col
-        k += 1
+        rows[k] = A.rowval[p]; cols[k] = col; k += 1
     end
     return rows, cols
 end
 
-function _br_jac_coord!(A::SparseMatrixCSC, vals)
+function _br_jac_coord!(A, vals)
     k = 1
     @inbounds for col in 1:size(A, 2), p in A.colptr[col]:(A.colptr[col + 1] - 1)
-        vals[k] = A.nzval[p]
-        k += 1
+        vals[k] = A.nzval[p]; k += 1
     end
     return vals
 end
 
-NLPModels.jac_structure!(m::BestResponseMPCC, rows::AbstractVector{<:Integer},
+NLPModels.jac_structure!(m::BestResponseNLP, rows::AbstractVector{<:Integer},
                          cols::AbstractVector{<:Integer}) = _br_jac_structure!(m.A, rows, cols)
-NLPModels.jac_lin_structure!(m::BestResponseMPCC, rows::AbstractVector{<:Integer},
+NLPModels.jac_lin_structure!(m::BestResponseNLP, rows::AbstractVector{<:Integer},
                              cols::AbstractVector{<:Integer}) = _br_jac_structure!(m.A, rows, cols)
-NLPModels.jac_nln_structure!(::BestResponseMPCC, rows::AbstractVector{<:Integer},
+NLPModels.jac_nln_structure!(::BestResponseNLP, rows::AbstractVector{<:Integer},
                              cols::AbstractVector{<:Integer}) = (rows, cols)
-NLPModels.jac_coord!(m::BestResponseMPCC, ::AbstractVector, v::AbstractVector) =
+NLPModels.jac_coord!(m::BestResponseNLP, ::AbstractVector, v::AbstractVector) =
     _br_jac_coord!(m.A, v)
-NLPModels.jac_lin_coord!(m::BestResponseMPCC, ::AbstractVector, v::AbstractVector) =
+NLPModels.jac_lin_coord!(m::BestResponseNLP, ::AbstractVector, v::AbstractVector) =
     _br_jac_coord!(m.A, v)
-NLPModels.jac_nln_coord!(::BestResponseMPCC, ::AbstractVector, v::AbstractVector) = v
+NLPModels.jac_nln_coord!(::BestResponseNLP, ::AbstractVector, v::AbstractVector) = v
 
-NLPModels.jprod!(m::BestResponseMPCC, ::AbstractVector, v::AbstractVector, Jv::AbstractVector) =
+NLPModels.jprod!(m::BestResponseNLP, ::AbstractVector, v::AbstractVector, Jv::AbstractVector) =
     LinearAlgebra.mul!(Jv, m.A, v)
-NLPModels.jprod_lin!(m::BestResponseMPCC, ::AbstractVector, v::AbstractVector, Jv::AbstractVector) =
+NLPModels.jprod_lin!(m::BestResponseNLP, ::AbstractVector, v::AbstractVector, Jv::AbstractVector) =
     LinearAlgebra.mul!(Jv, m.A, v)
-NLPModels.jprod_nln!(::BestResponseMPCC, ::AbstractVector, ::AbstractVector, Jv::AbstractVector) = Jv
-NLPModels.jtprod!(m::BestResponseMPCC, ::AbstractVector, v::AbstractVector, Jtv::AbstractVector) =
+NLPModels.jprod_nln!(::BestResponseNLP, ::AbstractVector, ::AbstractVector, Jv::AbstractVector) = Jv
+NLPModels.jtprod!(m::BestResponseNLP, ::AbstractVector, v::AbstractVector, Jtv::AbstractVector) =
     LinearAlgebra.mul!(Jtv, transpose(m.A), v)
-NLPModels.jtprod_lin!(m::BestResponseMPCC, ::AbstractVector, v::AbstractVector, Jtv::AbstractVector) =
+NLPModels.jtprod_lin!(m::BestResponseNLP, ::AbstractVector, v::AbstractVector, Jtv::AbstractVector) =
     LinearAlgebra.mul!(Jtv, transpose(m.A), v)
-NLPModels.jtprod_nln!(::BestResponseMPCC, ::AbstractVector, ::AbstractVector, Jtv::AbstractVector) = Jtv
+NLPModels.jtprod_nln!(::BestResponseNLP, ::AbstractVector, ::AbstractVector, Jtv::AbstractVector) = Jtv
 
-# --- Hessian of the Lagrangian: the objective's alone, since the constraints are linear -----
-#
-# Per segment, on the block (y_i^s, y_o^s): [2β β; β 0]. Lower triangle only, which is the
-# NLPModels convention, so two entries per segment: the (y_i, y_i) diagonal and one cross
-# term. The (y_o, y_o) entry is structurally zero and is not stored.
+# The constraints are linear, so the Hessian of the Lagrangian is the objective's alone:
+# per segment, on the (y_i, y_o) block, [2 beta, beta; beta, 0]. Lower triangle only.
 
-function NLPModels.hess_structure!(m::BestResponseMPCC, rows::AbstractVector{<:Integer},
+function NLPModels.hess_structure!(m::BestResponseNLP, rows::AbstractVector{<:Integer},
                                    cols::AbstractVector{<:Integer})
     i, o = m.i, 3 - m.i
     for s in 1:m.S
         a, b = br_y(m, i, s), br_y(m, o, s)
-        rows[2s - 1] = a
-        cols[2s - 1] = a
-        rows[2s] = max(a, b)
-        cols[2s] = min(a, b)
+        rows[2s - 1] = a; cols[2s - 1] = a
+        rows[2s] = max(a, b); cols[2s] = min(a, b)
     end
     return rows, cols
 end
 
-function NLPModels.hess_coord!(m::BestResponseMPCC{T}, ::AbstractVector{T},
+function NLPModels.hess_coord!(m::BestResponseNLP{T}, ::AbstractVector{T},
                                ::AbstractVector{T}, H::AbstractVector{T};
                                obj_weight::Real = one(T)) where {T}
     for s in 1:m.S
@@ -242,7 +212,7 @@ function NLPModels.hess_coord!(m::BestResponseMPCC{T}, ::AbstractVector{T},
     return H
 end
 
-function NLPModels.hprod!(m::BestResponseMPCC{T}, ::AbstractVector{T}, ::AbstractVector{T},
+function NLPModels.hprod!(m::BestResponseNLP{T}, ::AbstractVector{T}, ::AbstractVector{T},
                           v::AbstractVector{T}, Hv::AbstractVector;
                           obj_weight::Real = one(T)) where {T}
     fill!(Hv, zero(T))
@@ -255,46 +225,70 @@ function NLPModels.hprod!(m::BestResponseMPCC{T}, ::AbstractVector{T}, ::Abstrac
     return Hv
 end
 
-# --- the MPCC, and solving it ---------------------------------------------------------------
-
 """
-    best_response_mpcc(data, i, x; x0) -> (mpcc, index)
+    best_response_mpcc_arrays(S, beta, alpha, K, nu, i, x_other; x0) -> (mpcc, nlp)
 
-Player `i`'s best-response problem as an `MPCCModels.MPCCModel`, with the rival's capacity
-taken from `x[3 - i]`. The complementary pairs are `(y_j^s, ω_j^s)` and `(λ_j^s, u_j^s)`,
-declared by index; `index.x` is the position of `x_i` in the solution vector.
-
-Optionally give `x0`, a full starting vector in the same layout. The default is the origin,
-which is a poor start on purpose: it is a corner, and F-0015 shows corners are where this
-model is degenerate.
+Player `i`'s best-response problem as an `MPCCModels.MPCCModel`. The complementary pairs
+are `(y_j^s, omega_j^s)` and `(lambda_j^s, u_j^s)`, declared by index. `x_i` is position 1
+of the solution vector.
 """
-function best_response_mpcc(d::MSData, i::Int, x::AbstractVector; x0 = nothing)
-    nlp = BestResponseMPCC(d, i, Float64(x[other(i)]); x0 = x0)
-    S = d.S
-    cc1 = Int[]
-    cc2 = Int[]
+function best_response_mpcc_arrays(S::Integer, beta::Real, alpha::AbstractVector,
+                                   K::AbstractVector, nu::AbstractVector, i::Int,
+                                   x_other::Real; x0 = nothing)
+    nlp = BestResponseNLP(S, beta, alpha, K, nu, i, x_other; x0 = x0)
+    cc1, cc2 = Int[], Int[]
     for j in 1:2, s in 1:S
         push!(cc1, br_y(nlp, j, s)); push!(cc2, br_ω(nlp, j, s))
         push!(cc1, br_λ(nlp, j, s)); push!(cc2, br_u(nlp, j, s))
     end
-    mpcc = MPCCModels.MPCCModel(nlp, cc1, cc2)
-    return mpcc, (x = 1, y = [br_y(nlp, j, s) for j in 1:2, s in 1:S], nlp = nlp)
+    return MPCCModels.MPCCModel(nlp, cc1, cc2), nlp
 end
 
 """
-    solve_best_response_mpcc(data, i, x; method, x0) -> NamedTuple
+    best_response_start_arrays(S, beta, alpha, K, nu, i, x, y) -> Vector
 
-Hand player `i`'s best-response MPCC to CCOpt and report what came back: the capacity
-`x_i`, the objective recomputed from the returned point, the solver's status, and the
-largest complementarity violation, also recomputed.
+A full starting vector consistent at capacities `x` with second-stage outputs `y`: the
+duals and slacks implied by them, and `x_i` at its current value.
 
-`method` is `:relaxation` or `:penalty`. Nothing here reads the solver's own account of its
-success as evidence (engine `DECISIONS.md` D-0002); the objective and the complementarity
-are recomputed from the point.
+Its purpose is to pose a solve from a chosen point rather than the solver's default. Started
+inside the worse of two wells of player `i`'s objective, a method that only moves downhill
+has no reason to leave, and handing the solver exactly that point is the honest way to ask
+whether it does. Started where player `i` holds nothing, every capacity pair is biactive and
+the second stage is degenerate, which asks a different question: whether such a start stalls
+the method.
 """
-function solve_best_response_mpcc(d::MSData, i::Int, x::AbstractVector;
-                                  method::Symbol = :relaxation, x0 = nothing)
-    mpcc, idx = best_response_mpcc(d, i, x; x0 = x0)
+function best_response_start_arrays(S::Integer, beta::Real, alpha::AbstractVector,
+                                    K::AbstractVector, nu::AbstractVector, i::Int,
+                                    x::AbstractVector, y::AbstractMatrix)
+    z = zeros(1 + 8 * S)
+    z[1] = Float64(x[i])
+    for j in 1:2, s in 1:S
+        z[1 + (j - 1) * S + s] = y[j, s]
+        # lambda is the shadow price of capacity: positive only where output is at capacity.
+        λ = abs(Float64(x[j]) - y[j, s]) <= 1e-9 ?
+            max(alpha[s] - 2 * beta * y[j, s] - beta * y[3 - j, s] - nu[j], 0.0) : 0.0
+        z[1 + 2 * S + (j - 1) * S + s] = λ
+        ω = -alpha[s] + 2 * beta * y[j, s] + beta * y[3 - j, s] + nu[j] + λ
+        z[1 + 4 * S + (j - 1) * S + s] = max(ω, 0.0)
+        z[1 + 6 * S + (j - 1) * S + s] = max(Float64(x[j]) - y[j, s], 0.0)
+    end
+    return z
+end
+
+"""
+    solve_best_response_arrays(S, beta, alpha, K, nu, i, x, method; x0) -> NamedTuple
+
+Hand player `i`'s best-response MPCC to CCOpt and report what came back: `x_i`, the
+objective and complementarity recomputed from the returned point, the constraint violation,
+and the solver's status. `method` is `:relaxation` or `:penalty`.
+
+Nothing here treats the solver's own account of its success as evidence: the objective and
+the complementarity are recomputed.
+"""
+function solve_best_response_arrays(S::Integer, beta::Real, alpha::AbstractVector,
+                                    K::AbstractVector, nu::AbstractVector, i::Int,
+                                    x::AbstractVector, method::Symbol; x0 = nothing)
+    mpcc, nlp = best_response_mpcc_arrays(S, beta, alpha, K, nu, i, x[3 - i]; x0 = x0)
     level = MadNLP.ERROR
     solver = if method === :relaxation
         CCOpt.RelaxationSolver(mpcc;
@@ -308,40 +302,51 @@ function solve_best_response_mpcc(d::MSData, i::Int, x::AbstractVector;
     end
     t = @elapsed stats = CCOpt.solve_homotopy!(solver)
     z = stats.solution
-    nlp = idx.nlp
     comp = 0.0
-    for j in 1:2, s in 1:d.S
+    for j in 1:2, s in 1:S
         comp = max(comp, abs(z[br_y(nlp, j, s)] * z[br_ω(nlp, j, s)]))
         comp = max(comp, abs(z[br_λ(nlp, j, s)] * z[br_u(nlp, j, s)]))
     end
     return (x_i = z[1], objective = NLPModels.obj(nlp, z), status = stats.status,
-            complementarity = comp, feasibility = maximum(abs.(nlp.A * z .- nlp.meta.lcon)),
+            complementarity = comp,
+            feasibility = maximum(abs.(nlp.A * z .- NLPModels.get_lcon(nlp))),
             solve_time = t, z = z)
+end
+
+# emit:best_response_core:end
+
+# --- the same things, over this repository's own types ---------------------------------------
+
+const BestResponseMPCC = BestResponseNLP
+
+"""
+    best_response_mpcc(data, i, x; x0) -> (mpcc, index)
+
+[`best_response_mpcc_arrays`](@ref) over an `MSData`, with the rival's capacity taken from
+`x[3 - i]`. `index.x` is the position of `x_i`; `index.nlp` is the underlying model.
+"""
+function best_response_mpcc(d::MSData, i::Int, x::AbstractVector; x0 = nothing)
+    mpcc, nlp = best_response_mpcc_arrays(d.S, d.beta, d.alpha, d.K, d.nu, i,
+                                          Float64(x[other(i)]); x0 = x0)
+    return mpcc, (x = 1, y = [br_y(nlp, j, s) for j in 1:2, s in 1:d.S], nlp = nlp)
 end
 
 """
     best_response_start(data, i, x; backend) -> Vector
 
-A full starting vector for player `i`'s MPCC that is consistent at capacities `x`: the
-second stage solved there, its slacks computed, and `x_i` at its current value.
-
-Its purpose is adversarial. Started at a capacity vector that is a *local* optimum for
-player `i` but not a global one — which is what the corner roots of (16) are — a method
-that only moves downhill has no reason to leave. Handing the solver exactly that point is
-the sharpest test of whether it does (`FINDINGS.md` F-0016).
+[`best_response_start_arrays`](@ref) at the second-stage solution of `x`.
 """
 function best_response_start(d::MSData, i::Int, x::AbstractVector; backend::Symbol = :path)
-    S = d.S
     pt = ms_second_stage(d, x; backend = backend)
-    z = zeros(1 + 8 * S)
-    z[1] = Float64(x[i])
-    for j in 1:2, s in 1:S
-        z[1 + (j - 1) * S + s] = pt.y[j, s]
-        z[1 + 2 * S + (j - 1) * S + s] = pt.λ[j, s]
-        ω = -d.alpha[s] + 2 * d.beta * pt.y[j, s] + d.beta * pt.y[3 - j, s] +
-            d.nu[j] + pt.λ[j, s]
-        z[1 + 4 * S + (j - 1) * S + s] = max(ω, 0.0)
-        z[1 + 6 * S + (j - 1) * S + s] = max(Float64(x[j]) - pt.y[j, s], 0.0)
-    end
-    return z
+    return best_response_start_arrays(d.S, d.beta, d.alpha, d.K, d.nu, i, x, pt.y)
 end
+
+"""
+    solve_best_response_mpcc(data, i, x; method, x0) -> NamedTuple
+
+[`solve_best_response_arrays`](@ref) over an `MSData`.
+"""
+solve_best_response_mpcc(d::MSData, i::Int, x::AbstractVector;
+                         method::Symbol = :relaxation, x0 = nothing) =
+    solve_best_response_arrays(d.S, d.beta, d.alpha, d.K, d.nu, i, collect(Float64.(x)),
+                               method; x0 = x0)

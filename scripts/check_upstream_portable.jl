@@ -25,7 +25,8 @@ import TOML
 
 const REPO = normpath(joinpath(@__DIR__, ".."))
 const EMITTED = [joinpath(REPO, "upstream", "test_murphy_smeers_lcp.jl"),
-                 joinpath(REPO, "upstream", "closed_loop_demonstration.jl")]
+                 joinpath(REPO, "upstream", "closed_loop_demonstration.jl"),
+                 joinpath(REPO, "upstream", "hard_case_near_tie.jl")]
 
 for f in EMITTED
     isfile(f) || error("no emitted file at $f; run the matching scripts/emit_*.jl first")
@@ -102,8 +103,8 @@ end
 
 println()
 if failures == 0
-    println("PASSED: both emitted files run in an environment holding only CCOpt's own test")
-    println("dependencies, and import nothing outside that set.")
+    println("PASSED: all $(length(EMITTED)) emitted files run in an environment holding only")
+    println("CCOpt's own declared test dependencies, and import nothing outside that set.")
 else
     println("FAILED: $failures of $(length(EMITTED)) emitted files did not run there, so what")
     println("upstream/PULL_REQUEST.md and upstream/NOTE_first_order_conditions.md claim is")

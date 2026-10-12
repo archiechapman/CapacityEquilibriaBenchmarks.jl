@@ -2,3 +2,11 @@
 # Python bytecode from the guardrail gates (ci/gates/, sync/)
 __pycache__/
 *.py[cod]
+
+# The documentation build. docs/src/generated/ is copied in from the report, the
+# derivations, the ledgers and upstream/ by docs/make.jl, so that the site cannot drift
+# from them. The docs manifest is not committed: the root Manifest.toml is the one whose
+# versions are part of the result (DECISIONS.md D-0003).
+/docs/build/
+/docs/src/generated/
+/docs/Manifest.toml

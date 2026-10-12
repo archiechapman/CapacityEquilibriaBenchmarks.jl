@@ -5,15 +5,16 @@ the PATH solve, the CCOpt.jl solve, and the tolerance each comparison was made a
 any number in a docstring, README or commit message. Claims are made at the tier their
 `FINDINGS.md` entry carries and no higher.*
 
-*Status as of 2026-09-11: Phases 1 and 2 complete, Phase 3 complete. Both
-open-loop models are validated on two constructed instances against a hand derivation, an
-exhaustive enumeration and the paper's own theorems, and are solved by PATH and by both of
-CCOpt.jl's methods over four routes. The upstream test file is generated and passing. The
-closed-loop equilibrium of each instance is found by a solver-free enumeration, reached
-independently by diagonalization, and checked against every comparative result the paper
-states. Phase 4 has begun: one player's best response is built as a genuine MPCC and CCOpt
-reaches its known global optimum on every case tried. Not done: the monolithic joint system,
-which turns out not to be the reformulation the plan describes.*
+*Status as of 2026-09-11: Phases 1 to 3 complete, Phase 4 in progress. Both open-loop
+models are validated on two constructed instances against a hand derivation, an exhaustive
+enumeration and the paper's own theorems, and are solved by PATH and by both of CCOpt.jl's
+methods over four routes. The closed-loop equilibrium of each instance is found by a
+solver-free enumeration, reached independently by diagonalization, and checked against
+every comparative result the paper states. Phase 4 has built one player's best response as
+a genuine MPCC, which CCOpt solves to its known global optimum on every case tried, and a
+deliberately hard version of it on which CCOpt finds the better of two nearly tied optima
+about half the time. Three upstream files are generated and passing. Not done: the
+monolithic joint system, which turns out not to be the reformulation the plan describes.*
 
 ## The paper, and what it publishes
 
@@ -193,15 +194,23 @@ which one player invests nothing:
 | B | (0, 4.475) | 187.9 |
 | B | (3.03, 3.54) | 0 |
 
-The corner roots are genuine — their residual is zero, not small — and they are not
-equilibria. They also violate Theorems 4, 6 and 7, so the paper's own theory rejects them
-independently of the deviation test. This is Lemma 13, p.31 in practice: the long-run
-objective is only piecewise convex and its marginal cost can jump downwards (Figure 4,
-p.32), so a player at zero capacity can face a positive marginal cost for its first unit
-while a larger investment is strictly better.
+The corner roots are genuine roots of (16) as evaluated — their residual is zero, not small
+— and they are not equilibria. They also violate Theorems 4, 6 and 7, so the paper's own
+theory rejects them independently of the deviation test.
 
-Two consequences, both recorded rather than absorbed. Any method that stops at a
-first-order condition can land on one of these points, diagonalization included. And
+They are not local optima either (`FINDINGS.md` F-0018). At every corner the player holding
+nothing gains from its very first unit of capacity: on instance A the base player's
+objective falls from zero at a slope of −18, which is its capacity cost of 7 plus three
+units of operating cost against the peaker's prices of 12.5, 9 and 6.5. The corners satisfy
+(16) because they are kinks. With no capacity the player's output is zero, which is both
+idle and at capacity, and the regime classification reads it as idle; Lemma 7 gives an idle
+player a zero derivative, so (16) reduces to `ξ_i = K_i > 0`, complementary to `x_i = 0`.
+Read as at capacity, which is what the player becomes the moment it builds, (16) returns the
+negative right derivative instead. (16) is stated only where the second-stage solution is
+differentiable (p.24), and at these points it is not.
+
+Two consequences, both recorded rather than absorbed. Any method that evaluates (16) at a
+point, rather than looking at the objective, can land on one of these points. And
 `DECISIONS.md` D-0006 is amended to require a best-response check before a root of (16) is
 described as an equilibrium anywhere in this repository.
 
@@ -221,20 +230,16 @@ enumeration of Phase 3, which is what makes it a test rather than a demonstratio
 | What was solved | Solves | Result |
 |---|---|---|
 | Both players, three rival capacity vectors, two instances, both CCOpt methods | 24 | global optimum every time, objective within 1.3e-6 |
-| Started exactly at a local optimum that is not global, at each corner root | 8 | left it every time and reached the global optimum |
+| Started at each corner root, where the player holds nothing, with every variable consistent | 8 | reached the global optimum every time |
 
-The second row is the one that matters. At a corner root of (16) the player holding nothing
-is at a local optimum: no small increase of capacity pays. The global answer is far away and
-worth 31.95 and 46.33 on instance A, 187.85 and 322.52 on instance B. Started there with
-every variable consistent, a method that only moves downhill has no reason to leave. Both of
-CCOpt's methods leave, on all eight cases.
-
-The likely mechanism is the homotopy both methods use: they begin with the complementarity
-loosened and tighten it over a sequence of subproblems, and while it is loose the iterate can
-cross a regime boundary. That is exactly the barrier that traps a method starting with the
-complementarity already tight, and it means a best-response iteration built on CCOpt would
-not be caught by the trap F-0014 described. F-0016 records that correction against F-0014
-rather than editing it away.
+The corner starts are degenerate: every one of the idle player's capacity pairs is biactive
+and its capacity duals lie on a ray. The global answer from there is far away, worth 31.95
+and 46.33 on instance A and 187.85 and 322.52 on instance B, and both of CCOpt's methods
+reach it on all eight cases. They are not, however, a trap. F-0016 described each corner as
+a local optimum that is not global and credited CCOpt's homotopy with escaping it; F-0018
+found that the objective falls from the first unit of capacity at every corner, so a method
+that only moves downhill would leave too. The row shows CCOpt handling a degenerate start,
+not escaping a local optimum. The trap test is Case 5.
 
 ### Why the monolithic system in the plan is not built
 
@@ -244,25 +249,62 @@ Lemma 7 (14), p.22 gives as a piecewise-constant table indexed by regime, so (16
 smooth function of the variables and no single smooth MPCC has it as stationarity
 conditions. The two honest routes are a disjunctive encoding, which leaves MPCC territory,
 and stacking each player's MPEC-KKT conditions, whose constraint qualifications fail
-generically and demonstrably fail at the degenerate corners of F-0015. Neither is built, and
-the choice between them is the design fork the plan itself says to raise with CCOpt.jl's
-maintainers before committing to one.
+generically and demonstrably fail at the degenerate corners of F-0015. Neither is built.
+Choosing between them is a modelling decision with no obviously right answer, and it is
+recorded as open rather than settled.
 
 
-## The two artifacts offered upstream
+## Case 5: a hard case, built on purpose — the best response at a near-tie
 
-`upstream/` holds two generated files and three hand-written notes. Neither file has been
-sent to anyone.
+`FINDINGS.md` F-0017, tier **validated**. Everything above, CCOpt solved. A test that
+nothing fails is weak, so this case was searched for rather than hoped for.
+
+At a fixed rival capacity a player's long-run objective is piecewise quadratic, one piece
+per second-stage regime, so its landscape is a row of wells. As the rival's capacity moves
+the wells rise and fall relative to one another, and `best_response_tie` finds, by golden
+section on the gap, the rival capacity at which two widely separated wells are level. Both
+wells are verified local minima, rising on both sides.
+
+| Instance | Player | Tie at rival capacity | Two optima at | Apart by | Objectives agree to |
+|---|---|---|---|---|---|
+| A | peaking | 7.254033307585 | 3.873 and 5.000 | 1.127 | 1.7e-14 relative |
+| A | base-load | 3.450296453109 | 4.775 and 5.333 | 0.559 | 3.0e-15 |
+| B | peaking | 5.317351598173 | 2.433 and 3.000 | 0.567 | 2.4e-14 |
+| B | base-load | 4.292375886525 | 3.133 and 3.633 | 0.500 | 9.5e-15 |
+
+Moving the rival's capacity by ±0.001 gives a definite right answer with a relative margin
+of 7e-5 to 1.5e-4, and flips which well it is. Each of 32 problems (four ties, four offsets,
+two methods) is posed from a start inside the wrong well.
+
+| Warm start | Better well found |
+|---|---|
+| From CCOpt's own output stage, as in `upstream/hard_case_near_tie.jl` | 16 of 32 |
+| From PATH's output stage, in-repository | 19 of 32 |
+
+Both methods fail, on different problems, with neither dominating. Every returned point is
+feasible and is one of the two local minima: these are converged answers to a question with
+two nearly equal answers, not convergence failures. At these wells, which sit on regime
+boundaries, CCOpt's second-stage solution is about 2e-4 from PATH's against about 1e-8 at an
+interior point, which is why the artifact inlines its ground truth rather than recomputing
+it. No other MPCC solver has been run on these problems, so nothing here says whether half
+is good, bad or ordinary.
+
+
+## The three artifacts offered upstream
+
+`upstream/` holds three generated files and three hand-written notes. None of the files has
+been sent to anyone.
 
 | File | What it is | Assertions |
 |---|---|---|
 | `test_murphy_smeers_lcp.jl` | The four open-loop problems as a regression test: known unique answers, both CCOpt methods reach them | 24 |
 | `closed_loop_demonstration.jl` | The closed-loop first-order conditions admitting three roots of which one is an equilibrium, and the degeneracy at the other two | 82 |
+| `hard_case_near_tie.jl` | Case 5: the ground truth of each near-tie is asserted; how often CCOpt finds the better well is reported, not asserted | reports 16 of 32 |
 
-Both are generated by `scripts/emit_*.jl`, registered in `generated.toml`, round-tripped
+All three are generated by `scripts/emit_*.jl`, registered in `generated.toml`, round-tripped
 against the in-repo model by the test suite, and checked by
 `scripts/check_upstream_portable.jl` to run in a project holding only CCOpt's own declared
-test dependencies (F-0009, F-0011, F-0015).
+test dependencies (F-0009, F-0011, F-0015, F-0017).
 
 The second is not a regression test and is not offered as one. Its subject is that a
 complementarity system can have a larger solution set than the problem it represents, so a
@@ -280,10 +322,11 @@ is the accompanying note, written to be read without economics.
 | B | (3.03, 3.54) | satisfied | nondegenerate | 3.1e-7 | 0 — the equilibrium |
 | B | (4.8, 0) | satisfied | degenerate | 1.0e-3 | 322.5 |
 
-The degeneracy column is not a coincidence: a player holding no capacity produces nothing
-and its capacity constraint binds at zero, which makes its own first-order term vanish and
-leaves its shadow price undetermined. The economics and the numerics degenerate together
-(F-0015).
+The degeneracy column is not a coincidence. A player holding no capacity produces nothing,
+so its output is both idle and at its capacity of zero: each of its capacity pairs is
+biactive. As degeneracy that leaves its shadow price undetermined, and as an ambiguous
+regime it lets (16) be evaluated on the idle reading, which gives the player no revenue
+term at all and makes the corner a root. One biactive pair, seen twice (F-0015, F-0018).
 
 The penalty residuals in the degenerate rows are not errors of that size. They are the
 product of a dual of order 1e5, which the problem does not determine, with a primal error of
@@ -315,11 +358,13 @@ would miss an equilibrium sitting on a kink between regimes.
 julia --project -e 'using Pkg; Pkg.instantiate(); Pkg.test()'
 julia --project scripts/report_agreement.jl
 julia --project scripts/emit_upstream_test.jl    # rewrites upstream/, which CI checks
+julia --project=docs docs/make.jl                # the tutorial, which re-asserts cases 1 to 5 on instance A
 ```
 
-657 tests (707 with RUN_CLOSED_LOOP=true); about three minutes after precompilation, most of it the enumeration of 2¹⁴
-and 2¹⁸ patterns. No PATH licence is needed at these sizes. `Manifest.toml` is committed;
-the versions it records are part of the result.
+923 tests (973 with RUN_CLOSED_LOOP=true), in about seven minutes after precompilation,
+most of it the enumeration of 2¹⁴ and 2¹⁸ patterns and compiling the three upstream files,
+which the suite includes and runs. No PATH licence is needed at these sizes.
+`Manifest.toml` is committed; the versions it records are part of the result.
 
 ## The file offered upstream
 

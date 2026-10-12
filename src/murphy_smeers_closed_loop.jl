@@ -193,10 +193,16 @@ end
 A closed-loop equilibrium at a point where the second-stage solution is differentiable
 satisfies `0 <= x_i  perp  xi_i >= 0`.
 
-**This is a first-order condition and not a characterisation of equilibrium.** The long-run
-objective is only piecewise convex (Lemma 13, p.31) and its marginal cost can jump downwards
-(Figure 4, p.32), so a capacity vector can satisfy this and still not be an equilibrium. On
-both instances used in this programme it has three roots and only one is an equilibrium.
+**This is a first-order condition and not a characterisation of equilibrium.** It is stated
+only where the second-stage solution is differentiable (p.24), and here it is evaluated under
+whatever regimes `types` and `roles` name. At a kink the regime is ambiguous, and the choice
+decides which one-sided derivative comes out. On both instances used in this programme it
+has three roots and only one is an equilibrium. The other two are corners where a player
+holds nothing, so each of its capacity pairs is biactive, idle and at capacity at once. Read
+as idle, every derivative term is zero and `xi_i = K_i > 0`, a root. Read as at capacity,
+the same pairs give the true right derivative, which is negative: the first unit of capacity
+pays. Separately, the long-run objective is only piecewise convex (Lemma 13, p.31), so even
+a genuine stationary point need not be a global best response.
 """
 function ms_closed_loop_xi(S::Integer, beta::Real, alpha::AbstractVector,
                            K::AbstractVector, nu::AbstractVector, y::AbstractMatrix,
@@ -213,6 +219,26 @@ function ms_closed_loop_xi(S::Integer, beta::Real, alpha::AbstractVector,
         xi[i] = acc
     end
     return xi
+end
+
+"""
+    ms_long_run_objective(S, beta, alpha, K, nu, i, x_i, y) -> Float64
+
+Player `i`'s long-run objective (15), p.24, at capacity `x_i` and second-stage outputs `y`:
+
+    K_i x_i + sum_s [-alpha^s + beta (y_p^s + y_b^s) + nu_i] y_i^s
+
+The bracket is `nu_i - p^s`, so this is capacity cost minus gross margin: the negative
+profit that the player minimises.
+"""
+function ms_long_run_objective(S::Integer, beta::Real, alpha::AbstractVector,
+                               K::AbstractVector, nu::AbstractVector, i::Int,
+                               x_i::Real, y::AbstractMatrix)
+    v = K[i] * x_i
+    for s in 1:S
+        v += (-alpha[s] + beta * (y[1, s] + y[2, s]) + nu[i]) * y[i, s]
+    end
+    return v
 end
 
 # emit:closed_loop_core:end
@@ -402,7 +428,7 @@ makes this the *closed-loop* objective rather than the open-loop one.
 """
 function closed_loop_objective(d::MSData, i::Int, x::AbstractVector; backend::Symbol = :path)
     pt = ms_second_stage(d, x; backend = backend)
-    return d.K[i] * x[i] + sum((d.nu[i] - pt.price[s]) * pt.y[i, s] for s in 1:d.S)
+    return ms_long_run_objective(d.S, d.beta, d.alpha, d.K, d.nu, i, x[i], pt.y)
 end
 
 """
@@ -417,10 +443,11 @@ the value at `x`. Returns `gap` (the largest improvement available to either pla
 when neither can improve), `best` (each player's best capacity found) and `objective` (each
 player's objective at `x`).
 
-This is the test that equation (16) cannot perform. (16) is a first-order condition at a
-differentiable point, and Lemma 13, p.31 says the objective is only piecewise convex, so a
-point can satisfy (16) and still be a local minimum that is not global — the downward jump
-in Figure 4, p.32. A scan is crude, and it can only refute an equilibrium or fail to refute
+This is the test that equation (16) cannot perform. (16) is a first-order condition, stated
+only at differentiable points, and evaluated at a kink it can hold where the objective is not
+even locally minimal — the corner roots of F-0013 are such points (F-0018). Away from kinks,
+Lemma 13, p.31 says the objective is only piecewise convex, so a genuine local minimum need
+not be global either — the downward jump in Figure 4, p.32. A scan is crude, and it can only refute an equilibrium or fail to refute
 one; it cannot certify a global optimum between grid points. It is nevertheless decisive in
 the direction that matters here, because a candidate it refutes is not an equilibrium.
 """

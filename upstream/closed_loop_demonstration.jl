@@ -15,15 +15,20 @@
 # methods. The capacity stage is the interesting one. Its equilibrium condition is a
 # first-order condition: "no player gains from an infinitesimal change of capacity". On each
 # of the two instances below, three capacity vectors satisfy it. Only one of them is an
-# equilibrium. At the other two, a player gains a great deal by making a *large* change.
+# equilibrium. At the other two, a player holding nothing gains a great deal by building.
 #
 # WHY THAT CAN HAPPEN. A player's payoff as a function of its own capacity is piecewise
-# quadratic and only piecewise convex, because changing capacity changes which plants are
-# running in which demand blocks, and each such switch is a kink. A player holding no
-# capacity faces a positive cost for its first unit, so no small increase pays — the
-# first-order condition is satisfied — while a large increase crosses into a different
-# operating pattern and pays handsomely. A condition built from derivatives cannot see
-# across that gap.
+# quadratic, because changing capacity changes which plants are running in which demand
+# blocks, and each such switch is a kink. The first-order condition uses the derivative of
+# the output stage with respect to capacity, which is constant on each operating pattern,
+# and it is defined only away from the kinks. The two spurious roots sit on one. A player
+# holding no capacity produces nothing, so in every block its output is at both of its
+# bounds at once, zero and capacity, and the operating pattern is ambiguous. Read it as
+# idle and every derivative term vanishes: the condition reduces to "capacity costs
+# something", which holds at zero. Read it as at capacity and the derivative is the true
+# one-sided slope, which is steeply negative: the very first unit of capacity pays. So the
+# spurious roots are not local optima the derivative cannot see past. They are kinks, where
+# the condition is undefined and evaluating it anyway returns a root.
 #
 # WHY IT MATTERS FOR A SOLVER. Nothing here is a defect in CCOpt, and this file is careful to
 # demonstrate that: the solver is asked for the output-stage equilibrium at each of the three
@@ -344,10 +349,16 @@ end
 A closed-loop equilibrium at a point where the second-stage solution is differentiable
 satisfies `0 <= x_i  perp  xi_i >= 0`.
 
-**This is a first-order condition and not a characterisation of equilibrium.** The long-run
-objective is only piecewise convex (Lemma 13, p.31) and its marginal cost can jump downwards
-(Figure 4, p.32), so a capacity vector can satisfy this and still not be an equilibrium. On
-both instances used in this programme it has three roots and only one is an equilibrium.
+**This is a first-order condition and not a characterisation of equilibrium.** It is stated
+only where the second-stage solution is differentiable (p.24), and here it is evaluated under
+whatever regimes `types` and `roles` name. At a kink the regime is ambiguous, and the choice
+decides which one-sided derivative comes out. On both instances used in this programme it
+has three roots and only one is an equilibrium. The other two are corners where a player
+holds nothing, so each of its capacity pairs is biactive, idle and at capacity at once. Read
+as idle, every derivative term is zero and `xi_i = K_i > 0`, a root. Read as at capacity,
+the same pairs give the true right derivative, which is negative: the first unit of capacity
+pays. Separately, the long-run objective is only piecewise convex (Lemma 13, p.31), so even
+a genuine stationary point need not be a global best response.
 """
 function ms_closed_loop_xi(S::Integer, beta::Real, alpha::AbstractVector,
                            K::AbstractVector, nu::AbstractVector, y::AbstractMatrix,
@@ -364,6 +375,26 @@ function ms_closed_loop_xi(S::Integer, beta::Real, alpha::AbstractVector,
         xi[i] = acc
     end
     return xi
+end
+
+"""
+    ms_long_run_objective(S, beta, alpha, K, nu, i, x_i, y) -> Float64
+
+Player `i`'s long-run objective (15), p.24, at capacity `x_i` and second-stage outputs `y`:
+
+    K_i x_i + sum_s [-alpha^s + beta (y_p^s + y_b^s) + nu_i] y_i^s
+
+The bracket is `nu_i - p^s`, so this is capacity cost minus gross margin: the negative
+profit that the player minimises.
+"""
+function ms_long_run_objective(S::Integer, beta::Real, alpha::AbstractVector,
+                               K::AbstractVector, nu::AbstractVector, i::Int,
+                               x_i::Real, y::AbstractMatrix)
+    v = K[i] * x_i
+    for s in 1:S
+        v += (-alpha[s] + beta * (y[1, s] + y[2, s]) + nu[i]) * y[i, s]
+    end
+    return v
 end
 
 

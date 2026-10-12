@@ -84,15 +84,20 @@ const HEADER = """
 # methods. The capacity stage is the interesting one. Its equilibrium condition is a
 # first-order condition: "no player gains from an infinitesimal change of capacity". On each
 # of the two instances below, three capacity vectors satisfy it. Only one of them is an
-# equilibrium. At the other two, a player gains a great deal by making a *large* change.
+# equilibrium. At the other two, a player holding nothing gains a great deal by building.
 #
 # WHY THAT CAN HAPPEN. A player's payoff as a function of its own capacity is piecewise
-# quadratic and only piecewise convex, because changing capacity changes which plants are
-# running in which demand blocks, and each such switch is a kink. A player holding no
-# capacity faces a positive cost for its first unit, so no small increase pays — the
-# first-order condition is satisfied — while a large increase crosses into a different
-# operating pattern and pays handsomely. A condition built from derivatives cannot see
-# across that gap.
+# quadratic, because changing capacity changes which plants are running in which demand
+# blocks, and each such switch is a kink. The first-order condition uses the derivative of
+# the output stage with respect to capacity, which is constant on each operating pattern,
+# and it is defined only away from the kinks. The two spurious roots sit on one. A player
+# holding no capacity produces nothing, so in every block its output is at both of its
+# bounds at once, zero and capacity, and the operating pattern is ambiguous. Read it as
+# idle and every derivative term vanishes: the condition reduces to "capacity costs
+# something", which holds at zero. Read it as at capacity and the derivative is the true
+# one-sided slope, which is steeply negative: the very first unit of capacity pays. So the
+# spurious roots are not local optima the derivative cannot see past. They are kinks, where
+# the condition is undefined and evaluating it anyway returns a root.
 #
 # WHY IT MATTERS FOR A SOLVER. Nothing here is a defect in CCOpt, and this file is careful to
 # demonstrate that: the solver is asked for the output-stage equilibrium at each of the three

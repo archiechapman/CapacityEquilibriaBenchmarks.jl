@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "CapacityEquilibriaBenchmarks.jl"
+abstract: >-
+  Murphy and Smeers' capacity-expansion equilibria on constructed instances whose answers
+  are known independently of any solver, built as complementarity problems solved with PATH
+  and as MPCCs for CCOpt.jl, with test cases offered to CCOpt.jl. The paper publishes no
+  numerical example, so no number here is its authors'.
+type: software
+authors:
+  - family-names: Chapman
+    given-names: Archie
+    orcid: "https://orcid.org/0000-0002-5055-3004"
+version: 0.0.1
+license: BSD-3-Clause
+repository-code: "https://github.com/archiechapman/CapacityEquilibriaBenchmarks.jl"
+keywords:
+  - capacity expansion
+  - equilibrium
+  - complementarity
+  - MPCC
+  - benchmark
+  - Julia
+references:
+  - type: article
+    title: "Generation Capacity Expansion in Imperfectly Competitive Restructured Electricity Markets"
+    authors:
+      - family-names: Murphy
+        given-names: Frederic H.
+      - family-names: Smeers
+        given-names: Yves
+    journal: "Operations Research"
+    volume: 53
+    issue: 4
+    start: 646
+    end: 661
+    year: 2005
+    doi: "10.1287/opre.1050.0211"

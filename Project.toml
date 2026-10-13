@@ -1,7 +1,7 @@
 name = "CapacityEquilibriaBenchmarks"
 uuid = "166338c9-7bb0-4c34-9e85-1d288152f0b9"
 authors = ["Archie Chapman <archiechapman@gmail.com>"]
-version = "0.0.1"
+version = "0.1.0"
 
 [deps]
 CCOpt = "6689419a-93c1-455a-8ac6-77991ec4f86b"
